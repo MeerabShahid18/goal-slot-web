@@ -36,7 +36,7 @@ export const useTimerStore = create<TimerStoreState>()(
       pausedElapsedTime: 0,
       currentTask: '',
       currentTaskId: '',
-      currentCategory: 'DEEP_WORK',
+      currentCategory: '',
       currentGoalId: '',
       currentScheduleBlockId: '',
       reminderInterval: 15,
@@ -87,6 +87,18 @@ export const useTimerStore = create<TimerStoreState>()(
     }),
     {
       name: TIMER_STORAGE_KEY,
+      // Ensure old persisted default categories don't silently filter UI.
+      // If the persisted state contains a default category like 'DEEP_WORK',
+      // clear it on rehydrate so the Time Tracker shows all goals by default.
+      onRehydrateStorage: () => (persistedState) => {
+        try {
+          if (persistedState && persistedState.currentCategory === 'DEEP_WORK') {
+            persistedState.currentCategory = ''
+          }
+        } catch {
+          // Ignore errors during migration
+        }
+      },
     },
   ),
 )
