@@ -193,12 +193,6 @@ export function TimeTrackerPage() {
     return true
   })
 
-  // Debugging: log goals and filtered result to help diagnose missing items
-  if (typeof window !== 'undefined') {
-    // Use debug-level log so it can be filtered in DevTools
-    // eslint-disable-next-line no-console
-    console.debug('TimeTracker: goals count=', goals?.length, 'currentCategory=', currentCategory, 'filteredGoals count=', filteredGoals?.length, { goals, filteredGoals })
-  }
 
   const startTimer = () => {
     const selectedTask = currentTaskId ? tasks.find((t: Task) => t.id === currentTaskId) : undefined
