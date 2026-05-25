@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import dynamic from 'next/dynamic'
 
 import { ManualEntryModal } from '@/features/time-tracker/components/manual-entry-modal'
 import { RecentEntries } from '@/features/time-tracker/components/recent-entries'
@@ -9,7 +10,10 @@ import { StopTimerModal } from '@/features/time-tracker/components/stop-timer-mo
 import { TaskSelector } from '@/features/time-tracker/components/task-selector'
 import { TimerControls } from '@/features/time-tracker/components/timer-controls'
 import { TimerDisplay } from '@/features/time-tracker/components/timer-display'
-import { TimerSettings } from '@/features/time-tracker/components/timer-settings'
+const TimerSettings = dynamic(
+  () => import('@/features/time-tracker/components/timer-settings').then((m) => m.TimerSettings),
+  { ssr: false, loading: () => <div className="h-10" /> },
+)
 import { useCreateTimeEntry } from '@/features/time-tracker/hooks/use-time-tracker-mutations'
 import { useTimeTrackerData } from '@/features/time-tracker/hooks/use-time-tracker-queries'
 import { useTimer } from '@/features/time-tracker/hooks/use-timer'
@@ -184,14 +188,15 @@ export function TimeTrackerPage() {
   }
 
   // Sort tasks - prioritize tasks matching current goal/category but show all tasks
-  const orderedTasks = sortTasksBySelection(tasks, currentGoalId || undefined, currentCategory || undefined)
-  
-  const filteredGoals = goals.filter((goal: Goal) => {
-    if (currentCategory) {
-      return goal.category === currentCategory
-    }
-    return true
-  })
+  const orderedTasks = useMemo(
+    () => sortTasksBySelection(tasks, currentGoalId || undefined, currentCategory || undefined),
+    [tasks, currentGoalId, currentCategory],
+  )
+
+  const filteredGoals = useMemo(
+    () => goals.filter((goal: Goal) => (currentCategory ? goal.category === currentCategory : true)),
+    [goals, currentCategory],
+  )
 
   const startTimer = () => {
     const selectedTask = currentTaskId ? tasks.find((t: Task) => t.id === currentTaskId) : undefined
