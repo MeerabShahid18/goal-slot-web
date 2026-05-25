@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { GoalModal } from '@/features/goals/components/goal-modal'
 import { GoalsFilters } from '@/features/goals/components/goals-filters'
 import { GoalsHeader } from '@/features/goals/components/goals-header'
@@ -34,7 +34,12 @@ export function GoalsPage() {
   const handleFilterChange = (newFilters: GoalFilters) => {
     setFilters(newFilters)
   }
-
+  const searchParams = useSearchParams()
+ useEffect(() => {
+  if (searchParams.get('open') === 'create') {
+    setShowModal(true)
+  }
+}, [])
   return (
     <div className="space-y-6 p-4 sm:space-y-8 sm:p-6">
       <GoalsHeader onCreateClick={() => setShowModal(true)} />

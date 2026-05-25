@@ -22,7 +22,7 @@ export function DashboardHeader() {
           <Clock className="h-5 w-5" />
           <span className="hidden sm:inline">Log Time</span>
         </Link>
-        <Link href="/dashboard/goals" className="btn-brutal flex items-center gap-2">
+        <Link href="/dashboard/goals?open=create" className="btn-brutal flex items-center gap-2">
           <Plus className="h-5 w-5" />
           <span className="hidden sm:inline">New Goal</span>
         </Link>
