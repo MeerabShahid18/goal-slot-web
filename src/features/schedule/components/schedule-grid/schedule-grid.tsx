@@ -7,7 +7,7 @@ import { DraftBlock } from '@/features/schedule/components/schedule-grid/draft-b
 import { ScheduleGridDragLayer } from '@/features/schedule/components/schedule-grid/drag-layer'
 import { DraggableBlock } from '@/features/schedule/components/schedule-grid/draggable-block'
 import { useScheduleDrag } from '@/features/schedule/hooks/use-schedule-drag'
-import { COLUMN_HEIGHT, DAY_START_MIN, PX_PER_MIN, SLOT_MIN } from '@/features/schedule/utils/constants'
+import { COLUMN_HEIGHT, DAY_START_MIN,DAY_END_MIN, PX_PER_MIN, SLOT_MIN } from '@/features/schedule/utils/constants'
 import { DraftSelection, ScheduleBlock, WeekSchedule } from '@/features/schedule/utils/types'
 import { snapMinutes } from '@/features/schedule/utils/utils'
 import { Plus } from 'lucide-react'
@@ -134,19 +134,23 @@ export function ScheduleGrid({
         <ScheduleGridDragLayer onDragStart={handleDragStart} onDragMove={handleDragMove} onDragEnd={handleDragEnd}>
           <div className="flex overflow-y-hidden border-t border-gray-200">
             <div className="relative w-16 border-r-3 border-secondary" style={{ height: COLUMN_HEIGHT }}>
-              {Array.from({ length: 17 }, (_, hourIndex) => {
-                const hour = hourIndex + 6
-                const top = (hour * 60 - DAY_START_MIN) * PX_PER_MIN
-                return (
-                  <div
-                    key={hour}
-                    className="absolute left-0 right-0 pr-1 text-right font-mono text-xs text-gray-600"
-                    style={{ top }}
-                  >
-                    {hour.toString().padStart(2, '0')}:00
-                  </div>
-                )
-              })}
+               {Array.from(
+                  { length: (DAY_END_MIN - DAY_START_MIN) / 60 },
+                  (_, hourIndex) => {
+                    const hour = hourIndex + DAY_START_MIN / 60
+                    const top = (hour * 60 - DAY_START_MIN) * PX_PER_MIN
+
+                    return (
+                      <div
+                        key={hour}
+                        className="absolute left-0 right-0 pr-1 text-right whitespace-nowrap font-mono text-xs text-gray-600"
+                        style={{ top }}
+                      >
+                        {hour % 12 || 12}:00 {hour < 12 ? 'AM' : 'PM'}
+                      </div>
+                    )
+                  }
+              )}
             </div>
 
             <div className="grid flex-1 grid-cols-7">
