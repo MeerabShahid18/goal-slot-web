@@ -92,7 +92,6 @@ export function useCreateGoalMutation() {
       if (context?.previous) {
         restoreGoals(queryClient, context.previous)
       }
-      console.error('Create goal error:', error?.response?.data || error)
       toast.error(error?.response?.data?.message || 'Failed to create goal')
     },
     onSettled: () => {
@@ -138,7 +137,6 @@ export function useUpdateGoalMutation() {
       if (context?.previous) {
         restoreGoals(queryClient, context.previous)
       }
-      console.error('Update goal error:', error?.response?.data || error)
       toast.error(error?.response?.data?.message || 'Failed to update goal')
     },
     onSettled: () => {

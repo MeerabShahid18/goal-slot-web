@@ -55,7 +55,6 @@ export function SharedReportExport({ userId, userName }: SharedReportExportProps
       const fileName = `${userName}-time-report-${exportDateRange.startDate}-to-${exportDateRange.endDate}.csv`
       buildAndDownloadCSV(rawEntries, fileName)
     } catch (err) {
-      console.error('Export shared report CSV failed:', err)
     } finally {
       setIsExporting(false)
     }

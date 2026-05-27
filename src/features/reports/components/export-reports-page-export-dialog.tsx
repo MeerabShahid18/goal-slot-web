@@ -206,13 +206,11 @@ export function ExportReportsPageExportDialog({
               printWindow.document.close()
             }
           } catch (err) {
-            console.error('Error generating PDF content:', err)
           }
         }
 
         setOpen(false)
       } catch (error) {
-        console.error('Export failed:', error)
       }
     },
     [

@@ -314,7 +314,6 @@ export function ExportReportsFilters({ state }: ExportReportsFiltersProps) {
                           try {
                             window.localStorage.setItem(HOURLY_RATE_STORAGE_KEY, next)
                           } catch (error) {
-                            console.error('Failed to save hourly rate', error)
                           }
                         }
                       }}

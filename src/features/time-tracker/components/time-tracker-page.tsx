@@ -215,7 +215,6 @@ export function TimeTrackerPage() {
         { taskId: selectedTask.id, data: { status: 'DOING' } },
         {
           onError: (error) => {
-            console.error('Failed to update task status:', error)
             // Show user-friendly error but don't interrupt timer functionality
             toast.error('Could not update task status, but timer started successfully')
           }
