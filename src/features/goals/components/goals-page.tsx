@@ -1,7 +1,12 @@
 'use client'
 
+<<<<<<< Updated upstream
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
+=======
+import { useMemo, useState, useEffect } from 'react'
+import {useSearchParams} from 'next/navigation'
+>>>>>>> Stashed changes
 import { GoalModal } from '@/features/goals/components/goal-modal'
 import { GoalsFilters } from '@/features/goals/components/goals-filters'
 import { GoalsHeader } from '@/features/goals/components/goals-header'
@@ -35,11 +40,19 @@ export function GoalsPage() {
     setFilters(newFilters)
   }
   const searchParams = useSearchParams()
+<<<<<<< Updated upstream
  useEffect(() => {
   if (searchParams.get('open') === 'create') {
     setShowModal(true)
   }
 }, [])
+=======
+  useEffect(()=>{
+    if(searchParams.get('open')==='create') {
+      setShowModal(true)
+    }
+  },[])
+>>>>>>> Stashed changes
   return (
     <div className="space-y-6 p-4 sm:space-y-8 sm:p-6">
       <GoalsHeader onCreateClick={() => setShowModal(true)} />

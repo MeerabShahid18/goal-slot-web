@@ -7,6 +7,7 @@ export function DashboardHeader() {
   const today = format(new Date(), 'EEEE, MMMM d, yyyy')
 
   return (
+<<<<<<< Updated upstream
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h1 className="font-display text-2xl font-bold uppercase sm:text-3xl md:text-4xl">Dashboard</h1>
@@ -28,5 +29,29 @@ export function DashboardHeader() {
         </Link>
       </div>
     </div>
+=======
+    <PageHeader
+      eyebrow="Today"
+      title="Dashboard"
+      description={today}
+      actions={
+        <>
+          <CategoriesButton />
+          <Button asChild variant="secondary" size="sm">
+            <Link href="/dashboard/time-tracker">
+              <Clock className="h-4 w-4" />
+              <span className="hidden sm:inline">Log Time</span>
+            </Link>
+          </Button>
+          <Button asChild variant="brand" size="sm">
+            <Link href="/dashboard/goals?open=create">
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">New Goal</span>
+            </Link>
+          </Button>
+        </>
+      }
+    />
+>>>>>>> Stashed changes
   )
 }
