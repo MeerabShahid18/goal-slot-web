@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { Check, Copy, Download, Link as LinkIcon, MoreHorizontal, Star, StarOff, Trash2 } from 'lucide-react'
+import { Check, Copy, Download, Link as LinkIcon, MoreHorizontal, Plus, Star, StarOff, Trash2 } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -258,13 +258,23 @@ export function NoteEditor({ note, onDelete }: NoteEditorProps) {
   return (
     <div className={cn('flex h-full flex-col', colorConfig.bg)}>
       {/* Header */}
-      <div className="flex shrink-0 items-center justify-between border-b-2 border-border px-2 py-2 md:px-4 md:py-3">
+      <div className="flex shrink-0 items-center justify-between border-b border-zinc-200 px-2 py-2 md:px-4 md:py-3">
         <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-3">
-          {/* Icon picker */}
+          {/* Icon picker — empty by default. Shows a faint outlined + so
+              the user can still pick an icon, but no 📄 fallback noise. */}
           <Popover open={showIconPicker} onOpenChange={setShowIconPicker}>
             <PopoverTrigger asChild>
-              <button className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border-2 border-border bg-card text-xl transition-colors hover:bg-muted md:h-10 md:w-10 md:text-2xl">
-                {note.icon || '📄'}
+              <button
+                title={note.icon ? 'Change icon' : 'Add an icon'}
+                aria-label={note.icon ? 'Change icon' : 'Add an icon'}
+                className={cn(
+                  'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-xl transition-colors md:h-10 md:w-10 md:text-2xl',
+                  note.icon
+                    ? 'border-zinc-200 bg-card hover:bg-muted'
+                    : 'border-dashed border-zinc-200 bg-transparent text-zinc-400 hover:border-zinc-300 hover:text-zinc-600',
+                )}
+              >
+                {note.icon ?? <Plus className="h-4 w-4" />}
               </button>
             </PopoverTrigger>
             <PopoverContent className="w-64 p-2" align="start">
@@ -308,7 +318,7 @@ export function NoteEditor({ note, onDelete }: NoteEditorProps) {
           <button
             onClick={handleToggleFavorite}
             className={cn(
-              'flex h-8 w-8 items-center justify-center rounded-lg border-2 border-border transition-colors md:h-9 md:w-9',
+              'flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 transition-colors md:h-9 md:w-9',
               note.isFavorite
                 ? 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900 dark:text-yellow-400'
                 : 'bg-card hover:bg-muted',
@@ -326,7 +336,7 @@ export function NoteEditor({ note, onDelete }: NoteEditorProps) {
           <Popover open={showColorPicker} onOpenChange={setShowColorPicker}>
             <PopoverTrigger asChild>
               <button
-                className="flex h-8 w-8 items-center justify-center rounded-lg border-2 border-border bg-card transition-colors hover:bg-muted md:h-9 md:w-9"
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 bg-card transition-colors hover:bg-muted md:h-9 md:w-9"
                 title="Change color"
               >
                 <div
@@ -356,7 +366,7 @@ export function NoteEditor({ note, onDelete }: NoteEditorProps) {
           {/* More options */}
           <Popover open={showMenu} onOpenChange={setShowMenu}>
             <PopoverTrigger asChild>
-              <button className="flex h-8 w-8 items-center justify-center rounded-lg border-2 border-border bg-card transition-colors hover:bg-muted md:h-9 md:w-9">
+              <button className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 bg-card transition-colors hover:bg-muted md:h-9 md:w-9">
                 <MoreHorizontal className="h-3.5 w-3.5 md:h-4 md:w-4" />
               </button>
             </PopoverTrigger>

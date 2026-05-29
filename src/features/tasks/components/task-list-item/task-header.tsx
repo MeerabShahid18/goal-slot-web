@@ -15,7 +15,7 @@ export function TaskHeader({ task }: TaskHeaderProps) {
     <div className="flex items-start gap-2 sm:gap-3">
       <span
         className={cn(
-          'mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full border-2 border-secondary shadow-brutal-sm sm:h-3 sm:w-3',
+          'mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full border border-zinc-200 shadow-sm sm:h-3 sm:w-3',
           statusStyle.dot,
         )}
       />
@@ -23,7 +23,7 @@ export function TaskHeader({ task }: TaskHeaderProps) {
         <h4
           className={cn(
             'font-display text-base font-bold uppercase leading-tight break-words sm:text-lg',
-            'text-secondary',
+            'text-zinc-900',
           )}
         >
           {task.title}

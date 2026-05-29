@@ -17,60 +17,60 @@
   }
 
   :root {
-    /* Updated neubrutalist palette matching design system */
-    --background: 48 98% 97%; /* #FDFCF0 - lighter cream */
-    --foreground: 44 71% 9%; /* #1c190d - warm black */
-    --card: 0 0% 100%; /* #FFFFFF */
-    --card-foreground: 44 71% 9%;
+    --background: 0 0% 98%;
+    --foreground: 240 6% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 6% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 44 71% 9%;
-    --primary: 48 94% 50%; /* #f2cc0d - warmer yellow */
-    --primary-foreground: 44 71% 9%; /* warm black text on yellow */
-    --secondary: 44 71% 9%; /* #1c190d - warm black */
-    --secondary-foreground: 0 0% 98%; /* near-white */
-    --muted: 48 98% 97%; /* match background */
-    --muted-foreground: 0 0% 35%;
-    --accent: 48 98% 97%; /* match background */
-    --accent-foreground: 44 71% 9%;
-    --destructive: 0 84% 60%; /* default red */
-    --destructive-foreground: 0 0% 98%;
-    --border: 44 71% 9%; /* warm black outlines */
-    --input: 44 71% 9%;
-    --ring: 48 94% 50%; /* yellow focus ring */
-    --chart-1: 48 94% 50%; /* yellow */
-    --chart-2: 142 72% 47%; /* #22C55E */
-    --chart-3: 25 95% 53%; /* #F97316 */
-    --chart-4: 330 79% 59%; /* #EC4899 */
-    --chart-5: 258 91% 67%; /* #8B5CF6 */
-    --radius: 0.25rem; /* sharper corners for brutalism */
-  }
-
-  .dark {
-    /* Dark theme aligned to the same palette */
-    --background: 44 67% 7%; /* #221f10 - warm dark */
-    --foreground: 0 0% 98%;
-    --card: 0 0% 8%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 8%;
-    --popover-foreground: 0 0% 98%;
+    --popover-foreground: 240 6% 10%;
     --primary: 48 94% 50%;
-    --primary-foreground: 44 71% 9%;
-    --secondary: 0 0% 20%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 18%;
-    --muted-foreground: 0 0% 80%;
-    --accent: 0 0% 18%;
-    --accent-foreground: 0 0% 90%;
-    --destructive: 0 62.8% 55%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 24%;
-    --input: 0 0% 24%;
+    --primary-foreground: 240 6% 10%;
+    --secondary: 240 5% 96%;
+    --secondary-foreground: 240 6% 10%;
+    --muted: 240 5% 96%;
+    --muted-foreground: 240 4% 46%;
+    --accent: 240 5% 96%;
+    --accent-foreground: 240 6% 10%;
+    --destructive: 351 83% 61%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 160 84% 39%;
+    --warning: 38 92% 50%;
+    --border: 240 6% 90%;
+    --input: 240 6% 90%;
     --ring: 48 94% 50%;
+    --radius: 0.75rem;
+    --border-subtle: 240 6% 6% / 0.06;
     --chart-1: 48 94% 50%;
     --chart-2: 142 72% 47%;
     --chart-3: 25 95% 53%;
     --chart-4: 330 79% 59%;
     --chart-5: 258 91% 67%;
+  }
+
+  /* Dark mode design-token overrides. Setting these under .dark
+     flips every semantic Tailwind utility (bg-background, bg-card,
+     bg-popover, bg-muted, text-foreground, border-border, etc.) at
+     the source, which catches surfaces like .glass-card, the body,
+     and tiptap's @apply-bg-card popovers that the class-level
+     overrides further down can't reach. Brand-yellow primary/ring
+     stays the same — that's the design accent. */
+  .dark,
+  [data-journal-night='true'] {
+    --background: 240 6% 4%;
+    --foreground: 0 0% 96%;
+    --card: 240 6% 10%;
+    --card-foreground: 0 0% 96%;
+    --popover: 240 6% 10%;
+    --popover-foreground: 0 0% 96%;
+    --secondary: 240 6% 14%;
+    --secondary-foreground: 0 0% 96%;
+    --muted: 240 6% 14%;
+    --muted-foreground: 240 5% 65%;
+    --accent: 240 6% 16%;
+    --accent-foreground: 0 0% 96%;
+    --border: 240 6% 18%;
+    --input: 240 6% 18%;
+    --border-subtle: 0 0% 100% / 0.08;
   }
 
   * {
@@ -81,175 +81,33 @@
     @apply bg-background text-foreground font-sans antialiased;
   }
 
-  /* Neo-brutalism selection */
   ::selection {
-    @apply bg-primary text-secondary;
+    @apply bg-yellow-100 text-zinc-900;
   }
 }
 
 @layer components {
-  /* Neo-brutalism button styles */
-  .btn-brutal {
-    @apply relative px-3 py-1.5 text-xs font-bold uppercase tracking-wide
-           border-3 border-secondary bg-primary text-secondary
-           shadow-brutal transition-all duration-150
-           hover:shadow-brutal-hover hover:-translate-x-0.5 hover:-translate-y-0.5
-           active:shadow-none active:translate-x-1 active:translate-y-1
-           sm:px-4 sm:py-2 sm:text-xs sm:tracking-wide;
+  .glass-card {
+    @apply bg-card border border-zinc-200 rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.02),0_4px_12px_rgba(0,0,0,0.03)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_20px_rgba(0,0,0,0.04)] hover:border-zinc-300;
   }
-
-  .btn-brutal-secondary {
-    @apply relative px-3 py-1.5 text-xs font-bold uppercase tracking-wide
-           border-3 border-secondary bg-white text-secondary
-           shadow-brutal transition-all duration-150
-           hover:shadow-brutal-hover hover:-translate-x-0.5 hover:-translate-y-0.5
-           active:shadow-none active:translate-x-1 active:translate-y-1
-           sm:px-6 sm:py-3 sm:text-sm sm:tracking-wider;
+  .dark .glass-card,
+  [data-journal-night='true'] .glass-card {
+    @apply border-zinc-800 hover:border-zinc-700;
   }
-
-  .btn-brutal-dark {
-    @apply relative px-3 py-1.5 text-xs font-bold uppercase tracking-wide
-           border-3 border-secondary bg-secondary text-white
-           shadow-brutal transition-all duration-150
-           hover:shadow-brutal-hover hover:-translate-x-0.5 hover:-translate-y-0.5
-           active:shadow-none active:translate-x-1 active:translate-y-1
-           sm:px-6 sm:py-3 sm:text-sm sm:tracking-wider;
+  .active-nav {
+    @apply bg-zinc-100 text-zinc-900 font-semibold border border-zinc-200;
   }
-
-  /* Neo-brutalism card styles */
-  .card-brutal {
-    @apply bg-white border-3 border-secondary shadow-brutal px-2 py-2 sm:p-4;
-  }
-
-  .card-brutal-colored {
-    @apply border-3 border-secondary shadow-brutal px-2 py-2 sm:p-4;
-  }
-
-  /* Neo-brutalism input styles */
-  .input-brutal {
-    @apply w-full px-4 py-3 font-mono
-           border-3 border-secondary bg-white
-           focus:outline-none focus:ring-0 focus:shadow-brutal-sm
-           placeholder:text-gray-400;
-  }
-
-  /* Neo-brutalism badge */
-  .badge-brutal {
-    @apply inline-flex items-center px-3 py-1 font-bold text-xs uppercase
-           border-2 border-secondary;
-  }
-
-  /* Progress bar */
-  .progress-brutal {
-    @apply h-3 bg-gray-200 border-2 border-secondary overflow-hidden;
-  }
-
-  .progress-brutal-fill {
-    @apply h-full transition-all duration-300;
-  }
-
-  /* Sidebar navigation */
-  .nav-item {
-    @apply flex items-center gap-3 px-4 py-3 font-bold uppercase text-sm
-           border-3 border-secondary bg-white
-           transition-all duration-150
-           hover:bg-primary hover:shadow-brutal-sm hover:-translate-x-0.5 hover:-translate-y-0.5;
-  }
-
-  .nav-item-active {
-    @apply flex items-center gap-3 px-4 py-3 font-bold uppercase text-sm
-           border-3 border-secondary bg-primary shadow-brutal-sm
-           -translate-x-0.5 -translate-y-0.5;
-  }
-
-  /* Table styles */
-  .table-brutal {
-    @apply w-full border-3 border-secondary;
-  }
-
-  .table-brutal th {
-    @apply bg-secondary text-white font-bold uppercase text-sm px-4 py-3 text-left;
-  }
-
-  .table-brutal td {
-    @apply border-t-2 border-secondary px-4 py-3;
-  }
-
-  /* Modal */
-  .modal-brutal {
-    @apply bg-white border-3 border-secondary shadow-brutal-xl p-4;
-  }
-
-  /* Tooltip */
-  .tooltip-brutal {
-    @apply absolute z-50 px-3 py-2 text-sm font-bold
-           bg-secondary text-white border-2 border-secondary;
+  .timer-glow {
+    box-shadow: 0 0 40px rgba(242, 204, 13, 0.15);
   }
 }
 
 @layer utilities {
-  /* Text styles */
-  .text-brutal-heading {
-    @apply font-display font-bold uppercase tracking-tight;
+  .screen-enter {
+    animation: screenEnter 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
-
-  .text-brutal-mono {
-    @apply font-mono font-semibold;
-  }
-
-  /* Animation utilities */
-  .brutal-hover {
-    @apply transition-all duration-150
-           hover:shadow-brutal-hover hover:-translate-x-0.5 hover:-translate-y-0.5;
-  }
-
-  .brutal-active {
-    @apply active:shadow-none active:translate-x-1 active:translate-y-1;
-  }
-
-  /* Grid background pattern */
-  .bg-grid {
-    background-size: 40px 40px;
-    background-image:
-      linear-gradient(to right, rgba(28, 25, 13, 0.05) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(28, 25, 13, 0.05) 1px, transparent 1px);
-  }
-
-  /* Color variations for cards */
-  .bg-goal-learning {
-    @apply bg-blue-400;
-  }
-  .bg-goal-work {
-    @apply bg-cyan-400;
-  }
-  .bg-goal-health {
-    @apply bg-green-400;
-  }
-  .bg-goal-creative {
-    @apply bg-pink-400;
-  }
-
-  /* Schedule category colors */
-  .bg-schedule-deep-work {
-    @apply bg-primary;
-  }
-  .bg-schedule-learning {
-    @apply bg-green-400;
-  }
-  .bg-schedule-exercise {
-    @apply bg-orange-400;
-  }
-  .bg-schedule-side-project {
-    @apply bg-pink-400;
-  }
-  .bg-schedule-dsa {
-    @apply bg-primary;
-  }
-  .bg-schedule-meeting {
-    @apply bg-purple-400;
-  }
-  .bg-schedule-break {
-    @apply bg-gray-300;
+  .status-dot-live {
+    @apply w-2 h-2 rounded-full bg-emerald-500 animate-pulse;
   }
 
   /* Utility class for scrollable containers */
@@ -258,30 +116,532 @@
   }
 }
 
-/* Scrollbar styling */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+@keyframes screenEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.99) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
-::-webkit-scrollbar-track {
-  @apply bg-brutalist-bg border-l-2 border-secondary;
+/* ============================================================
+   DARK MODE — proper, not a filter trick.
+   ============================================================
+   Activated by adding the `dark` class to <html> (also responds to
+   the legacy `[data-journal-night='true']` attribute so the existing
+   journal-page toggle keeps working). All real dark surfaces, real
+   light text, brand-yellow stays brand-yellow. No invert, no
+   hue-rotate. Photos, SVGs, icons all render as the designer drew
+   them; only the chrome around them flips.
+
+   Anything carrying a brand-yellow class (#f2cc0d, #fffbea, #fff7d1,
+   #fff3a8, #8a7307) is explicitly NOT touched — the yellow is the
+   one warm thing on the page, by design. */
+
+html.dark,
+html[data-journal-night='true'] {
+  background-color: #09090b;
+  color-scheme: dark;
+}
+html.dark body,
+html[data-journal-night='true'] body {
+  background-color: #09090b !important;
+  color: #f4f4f5;
+  transition: background-color 0.4s ease, color 0.4s ease;
 }
 
-::-webkit-scrollbar-thumb {
-  @apply bg-secondary border-2 border-secondary;
+/* Layout backgrounds */
+html.dark .bg-white,
+html[data-journal-night='true'] .bg-white {
+  background-color: #18181b !important;
+}
+html.dark .bg-zinc-50,
+html[data-journal-night='true'] .bg-zinc-50 {
+  background-color: #18181b !important;
+}
+html.dark .bg-zinc-100,
+html[data-journal-night='true'] .bg-zinc-100 {
+  background-color: #27272a !important;
+}
+html.dark .bg-\[\#fafafa\],
+html[data-journal-night='true'] .bg-\[\#fafafa\] {
+  background-color: #09090b !important;
+}
+html.dark .bg-white\/95,
+html.dark .bg-white\/90,
+html.dark .bg-white\/80,
+html.dark .bg-white\/70,
+html.dark .bg-white\/60,
+html.dark .bg-white\/50,
+html[data-journal-night='true'] .bg-white\/95,
+html[data-journal-night='true'] .bg-white\/90,
+html[data-journal-night='true'] .bg-white\/80,
+html[data-journal-night='true'] .bg-white\/70,
+html[data-journal-night='true'] .bg-white\/60,
+html[data-journal-night='true'] .bg-white\/50 {
+  background-color: rgba(24, 24, 27, 0.92) !important;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  @apply bg-gray-800;
+/* Text */
+html.dark .text-zinc-900,
+html[data-journal-night='true'] .text-zinc-900 {
+  color: #f4f4f5 !important;
+}
+html.dark .text-zinc-800,
+html.dark .text-zinc-700,
+html[data-journal-night='true'] .text-zinc-800,
+html[data-journal-night='true'] .text-zinc-700 {
+  color: #e4e4e7 !important;
+}
+html.dark .text-zinc-600,
+html[data-journal-night='true'] .text-zinc-600 {
+  color: #d4d4d8 !important;
+}
+html.dark .text-zinc-500,
+html[data-journal-night='true'] .text-zinc-500 {
+  color: #a1a1aa !important;
+}
+html.dark .text-zinc-400,
+html[data-journal-night='true'] .text-zinc-400 {
+  color: #71717a !important;
 }
 
-/* Custom checkbox */
-input[type='checkbox'] {
-  @apply w-5 h-5 border-3 border-secondary bg-white appearance-none cursor-pointer;
+/* Borders */
+html.dark .border-zinc-100,
+html[data-journal-night='true'] .border-zinc-100 {
+  border-color: #18181b !important;
+}
+html.dark .border-zinc-200,
+html[data-journal-night='true'] .border-zinc-200 {
+  border-color: #27272a !important;
+}
+html.dark .border-zinc-300,
+html[data-journal-night='true'] .border-zinc-300 {
+  border-color: #3f3f46 !important;
+}
+html.dark .divide-zinc-100 > * + *,
+html.dark .divide-zinc-200 > * + *,
+html[data-journal-night='true'] .divide-zinc-100 > * + *,
+html[data-journal-night='true'] .divide-zinc-200 > * + * {
+  border-color: #27272a !important;
 }
 
-input[type='checkbox']:checked {
-  @apply bg-primary;
-  background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='black' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e");
+/* Shadows dial down — drop shadows over dark backgrounds look fake. */
+html.dark .shadow-sm,
+html.dark .shadow,
+html.dark .shadow-md,
+html.dark .shadow-lg,
+html.dark .shadow-xl,
+html[data-journal-night='true'] .shadow-sm,
+html[data-journal-night='true'] .shadow,
+html[data-journal-night='true'] .shadow-md,
+html[data-journal-night='true'] .shadow-lg,
+html[data-journal-night='true'] .shadow-xl {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.45) !important;
+}
+
+/* Popovers / dropdowns / dialogs (portaled outside the layout) */
+html.dark [data-radix-popper-content-wrapper] .bg-white,
+html[data-journal-night='true'] [data-radix-popper-content-wrapper] .bg-white {
+  background-color: #18181b !important;
+}
+html.dark [role='dialog'],
+html[data-journal-night='true'] [role='dialog'] {
+  background-color: #18181b !important;
+  color: #f4f4f5 !important;
+}
+
+/* Tiptap editor — uses `@apply` so its surfaces don't inherit from
+   our utility-class overrides. Explicit rules so the toolbar and the
+   editor body actually flip in dark mode. */
+html.dark .tiptap-toolbar,
+html[data-journal-night='true'] .tiptap-toolbar {
+  background-color: #18181b !important;
+  border-color: #27272a !important;
+}
+html.dark .toolbar-btn,
+html[data-journal-night='true'] .toolbar-btn {
+  color: #a1a1aa !important;
+}
+html.dark .toolbar-btn:hover,
+html[data-journal-night='true'] .toolbar-btn:hover {
+  background-color: #27272a !important;
+  color: #f4f4f5 !important;
+}
+html.dark .tiptap-editor .ProseMirror,
+html[data-journal-night='true'] .tiptap-editor .ProseMirror {
+  color: #e4e4e7 !important;
+}
+html.dark .tiptap-editor .ProseMirror p.is-editor-empty:first-child::before,
+html[data-journal-night='true'] .tiptap-editor .ProseMirror p.is-editor-empty:first-child::before {
+  color: #52525b !important;
+}
+html.dark .bubble-menu,
+html[data-journal-night='true'] .bubble-menu {
+  background-color: #18181b !important;
+  border-color: #27272a !important;
+}
+
+/* Brand-yellow tinted surfaces — in light mode these are warm cream
+   highlights (today's entry header, recent-entry selected row,
+   inline banners). In dark mode they'd punch as bright cream
+   rectangles, killing the night feel. Tone them down to dark-warm
+   tints so they still read as "this is brand territory" without
+   bleaching the page. The pure brand-yellow text colour stays as-is
+   so accents (the dot, the "Today" label, etc.) keep their warmth. */
+html.dark .bg-\[\#fffbea\],
+html[data-journal-night='true'] .bg-\[\#fffbea\] {
+  background-color: #2a2410 !important;
+}
+html.dark .bg-\[\#fff7d1\],
+html[data-journal-night='true'] .bg-\[\#fff7d1\] {
+  background-color: #3a3415 !important;
+}
+html.dark .bg-\[\#fff3a8\],
+html[data-journal-night='true'] .bg-\[\#fff3a8\] {
+  background-color: #4a4218 !important;
+}
+
+/* Gradient backgrounds — Tailwind compiles them to inline CSS
+   variables. Override the brand-yellow stops AND the to-white stop
+   that several headers use (`bg-gradient-to-br from-[#fffbea]
+   to-white`) so the gradient doesn't tail off into a bright white
+   strip under dark mode. */
+html.dark .from-\[\#fffbea\],
+html[data-journal-night='true'] .from-\[\#fffbea\] {
+  --tw-gradient-from: #2a2410 var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgba(42, 36, 16, 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+html.dark .via-\[\#fffbea\],
+html[data-journal-night='true'] .via-\[\#fffbea\] {
+  --tw-gradient-stops: var(--tw-gradient-from), #2a2410 var(--tw-gradient-via-position), var(--tw-gradient-to) !important;
+}
+html.dark .to-\[\#fff7d1\],
+html[data-journal-night='true'] .to-\[\#fff7d1\] {
+  --tw-gradient-to: #3a3415 var(--tw-gradient-to-position) !important;
+}
+html.dark .to-white,
+html[data-journal-night='true'] .to-white {
+  --tw-gradient-to: #18181b var(--tw-gradient-to-position) !important;
+}
+html.dark .from-white,
+html[data-journal-night='true'] .from-white {
+  --tw-gradient-from: #18181b var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgba(24, 24, 27, 0) var(--tw-gradient-to-position) !important;
+}
+html.dark .to-zinc-50,
+html[data-journal-night='true'] .to-zinc-50 {
+  --tw-gradient-to: #18181b var(--tw-gradient-to-position) !important;
+}
+
+/* Catch-all for selected/hover backgrounds that use brand-yellow
+   text on cream tint — the cream gets darkened above; the text needs
+   to stay brand-yellow not flip to light zinc. */
+html.dark .text-\[\#8a7307\],
+html[data-journal-night='true'] .text-\[\#8a7307\] {
+  color: #f2cc0d !important;
+}
+
+/* Catch any remaining "primary/foreground" derived from CSS vars
+   that the design system uses for ring/text colours. */
+html.dark .bg-primary,
+html[data-journal-night='true'] .bg-primary {
+  background-color: #f2cc0d !important;
+  color: #18181b !important;
+}
+html.dark .text-primary,
+html[data-journal-night='true'] .text-primary {
+  color: #f2cc0d !important;
+}
+html.dark .bg-muted,
+html[data-journal-night='true'] .bg-muted {
+  background-color: #27272a !important;
+}
+html.dark .text-muted-foreground,
+html[data-journal-night='true'] .text-muted-foreground {
+  color: #a1a1aa !important;
+}
+html.dark .border-border,
+html[data-journal-night='true'] .border-border {
+  border-color: #27272a !important;
+}
+html.dark .bg-card,
+html[data-journal-night='true'] .bg-card {
+  background-color: #18181b !important;
+}
+
+/* Older, narrower overrides kept for surfaces the filter trick can
+   miss (popover portals occasionally render outside <body>). */
+html[data-journal-night='true'] body,
+html[data-journal-night='true'] [data-sidebar='sidebar'],
+html[data-journal-night='true'] [data-sidebar='inset'] {
+  background-color: #09090b !important;
+  color: #e4e4e7;
+  transition: background-color 0.6s ease, color 0.6s ease;
+}
+html[data-journal-night='true'] [data-sidebar='sidebar'] {
+  border-right-color: #18181b !important;
+}
+html[data-journal-night='true'] [data-sidebar='sidebar'] a,
+html[data-journal-night='true'] [data-sidebar='sidebar'] button {
+  color: #d4d4d8;
+}
+html[data-journal-night='true'] [data-sidebar='sidebar'] a:hover,
+html[data-journal-night='true'] [data-sidebar='sidebar'] button:hover {
+  background-color: #18181b;
+}
+
+/* Broad surface inversion. Tailwind utility classes (.bg-white,
+   .text-zinc-900, etc.) end up as literal classnames in the compiled
+   CSS, so we can target them directly here. !important is required to
+   beat component-level utility specificity. The brand-yellow family
+   is intentionally NOT inverted — the lamp glow should remain the
+   only warm light source against the cold night chrome. */
+
+/* Surfaces */
+html[data-journal-night='true'] .bg-white,
+html[data-journal-night='true'] [data-radix-popper-content-wrapper] .bg-white {
+  background-color: #09090b !important;
+}
+html[data-journal-night='true'] .bg-zinc-50,
+html[data-journal-night='true'] [data-radix-popper-content-wrapper] .bg-zinc-50 {
+  background-color: #18181b !important;
+}
+html[data-journal-night='true'] .bg-zinc-100,
+html[data-journal-night='true'] [data-radix-popper-content-wrapper] .bg-zinc-100 {
+  background-color: #27272a !important;
+}
+html[data-journal-night='true'] .bg-\[\#fafafa\] {
+  background-color: #09090b !important;
+}
+
+/* Translucent whites used for glassy overlays */
+html[data-journal-night='true'] .bg-white\/95,
+html[data-journal-night='true'] .bg-white\/90,
+html[data-journal-night='true'] .bg-white\/80,
+html[data-journal-night='true'] .bg-white\/70,
+html[data-journal-night='true'] .bg-white\/60,
+html[data-journal-night='true'] .bg-white\/50 {
+  background-color: rgba(9, 9, 11, 0.9) !important;
+}
+
+/* Text */
+html[data-journal-night='true'] .text-zinc-900,
+html[data-journal-night='true'] [data-radix-popper-content-wrapper] .text-zinc-900 {
+  color: #f4f4f5 !important;
+}
+html[data-journal-night='true'] .text-zinc-800,
+html[data-journal-night='true'] [data-radix-popper-content-wrapper] .text-zinc-800 {
+  color: #e4e4e7 !important;
+}
+html[data-journal-night='true'] .text-zinc-700,
+html[data-journal-night='true'] [data-radix-popper-content-wrapper] .text-zinc-700 {
+  color: #e4e4e7 !important;
+}
+html[data-journal-night='true'] .text-zinc-600,
+html[data-journal-night='true'] [data-radix-popper-content-wrapper] .text-zinc-600 {
+  color: #d4d4d8 !important;
+}
+html[data-journal-night='true'] .text-zinc-500,
+html[data-journal-night='true'] [data-radix-popper-content-wrapper] .text-zinc-500 {
+  color: #a1a1aa !important;
+}
+
+/* Borders */
+html[data-journal-night='true'] .border-zinc-200,
+html[data-journal-night='true'] [data-radix-popper-content-wrapper] .border-zinc-200 {
+  border-color: #27272a !important;
+}
+html[data-journal-night='true'] .border-zinc-100,
+html[data-journal-night='true'] [data-radix-popper-content-wrapper] .border-zinc-100 {
+  border-color: #18181b !important;
+}
+html[data-journal-night='true'] .border-zinc-300 {
+  border-color: #3f3f46 !important;
+}
+html[data-journal-night='true'] .divide-zinc-200 > * + * {
+  border-color: #27272a !important;
+}
+html[data-journal-night='true'] .divide-zinc-100 > * + * {
+  border-color: #18181b !important;
+}
+
+/* Drop shadows look wrong on a dark background — flatten them so cards
+   read as floating panels by their borders, not their shadow. */
+html[data-journal-night='true'] .shadow-sm,
+html[data-journal-night='true'] .shadow,
+html[data-journal-night='true'] .shadow-md,
+html[data-journal-night='true'] .shadow-lg,
+html[data-journal-night='true'] .shadow-xl {
+  box-shadow: none !important;
+}
+
+/* Popover / dropdown surfaces (Radix portals these outside the normal
+   tree, so component-scoped styling can't reach them). */
+html[data-journal-night='true'] [data-radix-popper-content-wrapper] [role='menu'],
+html[data-journal-night='true'] [data-radix-popper-content-wrapper] [role='listbox'],
+html[data-journal-night='true'] [data-radix-popper-content-wrapper] [role='dialog'] {
+  background-color: #09090b !important;
+  color: #f4f4f5 !important;
+  border-color: #27272a !important;
+}
+
+/* Brand-yellow safeguards: even though we don't target these classes
+   above, some compound selectors (e.g. .bg-white inside a yellow
+   container) could still flip them. Re-assert the warm tints so the
+   lamp glow, banners, and pill chips stay yellow. */
+html[data-journal-night='true'] .bg-\[\#f2cc0d\] {
+  background-color: #f2cc0d !important;
+}
+html[data-journal-night='true'] .bg-\[\#fffbea\] {
+  background-color: #fffbea !important;
+}
+html[data-journal-night='true'] .bg-\[\#fff7d1\] {
+  background-color: #fff7d1 !important;
+}
+html[data-journal-night='true'] .bg-\[\#fff3a8\] {
+  background-color: #fff3a8 !important;
+}
+html[data-journal-night='true'] .text-\[\#8a7307\] {
+  color: #8a7307 !important;
+}
+/* CoachIcon is a fixed-colour <img> (brand square logo) — it can't be
+   re-tinted via currentColor. Invert it under night mode so the dark
+   pixels become bright + the brand-yellow flips to a deep navy that
+   reads against the zinc-950 chrome. */
+html[data-journal-night='true'] [data-sidebar='sidebar'] [aria-hidden] img[src*='goalslot-icon'] {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/* Soft brand-yellow pulse for the Journal sidebar icon. Stays subtle —
+   the glow expands and softens slightly to feel "magical", not flashy. */
+@keyframes journal-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 3px rgba(242, 204, 13, 0.55))
+      drop-shadow(0 0 8px rgba(242, 204, 13, 0.25));
+  }
+  50% {
+    filter: drop-shadow(0 0 6px rgba(242, 204, 13, 0.85))
+      drop-shadow(0 0 14px rgba(242, 204, 13, 0.5));
+  }
+}
+
+/* Journal feather pen "writing" sweep. Asymmetric on purpose — the big
+   left swing (-30°) reads as the windup, the smaller right swing (+15°)
+   as the follow-through. Pivots on the nib so it looks like a hand
+   sketching on the page. 2.6s loop, with pauses at neutral so the motion
+   never feels frantic. */
+@keyframes pen-tilt {
+  0% {
+    transform: rotate(0deg);
+  }
+  20% {
+    transform: rotate(-30deg);
+  }
+  40% {
+    transform: rotate(0deg);
+  }
+  55% {
+    transform: rotate(15deg);
+  }
+  70%,
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+/* Daytime sun for the Journal page rotates its rays over a full
+   minute — slow enough that motion is felt, not seen. */
+@keyframes sun-rotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Journal lamp idle bob — gently lifts the whole lamp 3px so the user
+   sees it as a thing to play with. Stops as soon as they interact. */
+@keyframes lamp-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+/* Lamp pull-string bead pulse — soft brightness flicker on the bead
+   when the lamp is off, nudging the user toward the click target. */
+@keyframes lamp-bead-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Brand-yellow spark twinkling around the Journal nav icon. Three sparks
+   share this keyframe with staggered delays (0s / 1s / 2s) so a star
+   shows up roughly every second without all of them firing at once. */
+@keyframes journal-spark {
+  0%,
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  15% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  40% {
+    opacity: 0.4;
+    transform: scale(0.7);
+  }
+}
+
+/* Slow brand-yellow halo ring that rides on top of the GoalSlot AI
+   coin-flip. Pulses brighter on the same 2s beat as the flip so the
+   icon reads as "thinking" — not just spinning. */
+@keyframes coach-aura {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 0 rgba(242, 204, 13, 0),
+      0 0 8px rgba(242, 204, 13, 0.35),
+      inset 0 0 6px rgba(242, 204, 13, 0.15);
+  }
+  50% {
+    box-shadow:
+      0 0 0 4px rgba(242, 204, 13, 0.18),
+      0 0 14px rgba(242, 204, 13, 0.6),
+      inset 0 0 8px rgba(242, 204, 13, 0.3);
+  }
+}
+
+/* GoalSlot AI mark: flips one full turn around the Y axis (horizontal
+   spin like a coin) in the first half of the cycle, then holds for the
+   second half — so it reads as "thinking, then settles". 2s total.
+   Applied to both the sidebar nav icon and the floating Coach button.
+   Disabled under prefers-reduced-motion via the motion-safe utility. */
+@keyframes coach-spin-pause {
+  0% {
+    transform: perspective(220px) rotateY(0deg);
+  }
+  50% {
+    transform: perspective(220px) rotateY(360deg);
+  }
+  100% {
+    transform: perspective(220px) rotateY(360deg);
+  }
 }

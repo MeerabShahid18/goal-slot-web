@@ -7,6 +7,8 @@ import { NotificationsButton } from '@/features/notifications/components/notific
 import { Toaster } from 'react-hot-toast'
 
 import { ReactQueryProvider } from '@/lib/react-query-provider'
+import { FloatingCoachButton } from '@/components/floating-coach-button'
+import { FloatingJournalButton } from '@/components/floating-journal-button'
 import PostHogAuth from '@/components/posthog-auth'
 
 export const viewport: Viewport = {
@@ -49,6 +51,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <PostHogAuth />
           {children}
           <div className="fixed bottom-6 right-6 z-50 flex flex-row items-end gap-2">
+            <FloatingJournalButton />
+            <FloatingCoachButton />
             <NotificationsButton />
             <Feedback label="Feedback" />
           </div>
