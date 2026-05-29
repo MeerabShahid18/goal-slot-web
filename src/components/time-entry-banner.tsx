@@ -3,13 +3,17 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
-import { Clock3, Pause, Timer, Bell, Square, Play } from 'lucide-react'
+import { Clock3, Pause, Timer, Bell, Square, Play, FileText } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 
 import { useTimerStore } from '@/lib/use-timer-store'
 import { useTimerNotifications } from '@/hooks/use-timer-notifications'
 import { useCreateTimeEntry } from '@/features/time-tracker/hooks/use-time-tracker-mutations'
 import { formatDuration, getLocalDateString } from '@/lib/utils'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { FocusNowBar } from '@/components/focus-now-bar'
+import { StartTrackingPopover } from '@/components/start-tracking-popover'
 
 const formatTimerDisplay = (seconds: number) => {
   const hrs = Math.floor(seconds / 3600)
@@ -45,6 +49,7 @@ export function TimeEntryBanner() {
     reset: state.reset,
   }))
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
+  const [startPopoverOpen, setStartPopoverOpen] = useState(false)
   const { permission, requestPermission } = useTimerNotifications()
   const createEntry = useCreateTimeEntry()
 
@@ -61,7 +66,54 @@ export function TimeEntryBanner() {
     }
   }, [timerState, startTimestamp, pausedElapsedTime])
 
-  if (timerState === 'STOPPED') return null
+  // Bridge for the Ctrl+K command palette: dispatch
+  // `goalslot:start-tracking` on window to open the quick-start popover.
+  // Only acts when the timer is stopped — the popover isn't rendered
+  // while a session is in progress and starting a second one would clash
+  // with the running entry.
+  useEffect(() => {
+    const handler = () => {
+      if (timerState === 'STOPPED') {
+        setStartPopoverOpen(true)
+      } else {
+        toast('A timer is already running. Stop it first.', { icon: '⏱️' })
+      }
+    }
+    window.addEventListener('goalslot:start-tracking', handler as EventListener)
+    return () => window.removeEventListener('goalslot:start-tracking', handler as EventListener)
+  }, [timerState])
+
+  if (timerState === 'STOPPED') {
+    // Always-on quick shortcut bar so users can start tracking, log time,
+    // or capture a note from any dashboard page without navigating first.
+    return (
+      <div className="sticky top-0 z-30 flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 bg-white px-4 py-2">
+        <div className="flex items-center gap-2 text-xs text-zinc-500">
+          <Clock3 className="h-3.5 w-3.5 text-zinc-400" />
+          <span className="font-medium text-zinc-700">Not tracking</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Link href="/dashboard/notes?action=new">
+            <Button variant="ghost" size="sm">
+              <FileText className="h-3.5 w-3.5" />
+              + Note
+            </Button>
+          </Link>
+          <Link href="/dashboard/time-tracker?action=manual">
+            <Button variant="ghost" size="sm">
+              <Clock3 className="h-3.5 w-3.5" />
+              + Log time
+            </Button>
+          </Link>
+          <Button variant="brand" size="sm" onClick={() => setStartPopoverOpen(true)}>
+            <Play className="h-3.5 w-3.5" />
+            Start tracking
+          </Button>
+        </div>
+        <StartTrackingPopover open={startPopoverOpen} onClose={() => setStartPopoverOpen(false)} />
+      </div>
+    )
+  }
 
   const isPaused = timerState === 'PAUSED'
 
@@ -101,70 +153,73 @@ export function TimeEntryBanner() {
   }
 
   return (
-    <div className="sticky top-0 z-30 border-b-3 border-secondary bg-primary text-secondary">
+    <div className="sticky top-0 z-30 border-b border-yellow-400/20 bg-yellow-400/10">
       <div className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center border-3 border-secondary bg-white shadow-brutal-sm sm:h-10 sm:w-10 md:h-11 md:w-11">
-            {isPaused ? <Pause className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" /> : <Timer className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />}
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white border border-yellow-400/30 timer-glow">
+            {isPaused ? <Pause className="h-5 w-5" /> : <Timer className="h-5 w-5" />}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="font-mono text-[10px] uppercase text-secondary/80 sm:text-xs">
+            <p className="text-[10px] font-bold tracking-wider uppercase text-yellow-700">
               {isPaused ? 'Time entry paused' : 'Time entry in progress'}
             </p>
-            <p className="line-clamp-1 text-sm font-bold uppercase sm:text-base md:text-lg">{currentTask || 'Untitled Task'}</p>
+            <p className="line-clamp-1 text-sm font-bold sm:text-base md:text-lg">{currentTask || 'Untitled Task'}</p>
           </div>
         </div>
 
         <div className="flex shrink-0 items-center justify-end gap-1.5 sm:gap-2 md:gap-3">
           {permission === 'default' && (
-            <button
+            <Button
               onClick={requestPermission}
-              className="btn-brutal flex h-8 items-center gap-1 bg-yellow-400 px-2 text-xs font-bold text-black hover:bg-yellow-500 sm:h-10 sm:gap-2 sm:px-3 sm:text-sm"
+              variant="brand"
+              size="sm"
               title="Enable Reminders"
             >
-              <Bell className="h-3 w-3 sm:h-4 sm:w-4" />
+              <Bell className="h-4 w-4" />
               <span className="hidden sm:inline">Remind Me</span>
-            </button>
+            </Button>
           )}
           {timerState === 'RUNNING' && (
-            <button
+            <Button
               onClick={handlePause}
               disabled={createEntry.isPending}
-              className="btn-brutal flex h-8 items-center justify-center bg-accent-orange px-2 text-white hover:bg-accent-orange/90 disabled:opacity-50 sm:h-10 sm:px-3"
+              variant="secondary"
+              size="sm"
               title="Pause timer"
             >
-              <Pause className="h-3 w-3 sm:h-4 sm:w-4" />
-            </button>
+              <Pause className="h-4 w-4" />
+            </Button>
           )}
           {timerState === 'PAUSED' && (
-            <button
+            <Button
               onClick={handleResume}
               disabled={createEntry.isPending}
-              className="btn-brutal flex h-8 items-center justify-center bg-green-500 px-2 text-white hover:bg-green-600 disabled:opacity-50 sm:h-10 sm:px-3"
+              variant="secondary"
+              size="sm"
               title="Resume timer"
             >
-              <Play className="h-3 w-3 sm:h-4 sm:w-4" />
-            </button>
+              <Play className="h-4 w-4" />
+            </Button>
           )}
-          <button
+          <Button
             onClick={handleStop}
             disabled={createEntry.isPending}
-            className="btn-brutal flex h-8 items-center justify-center bg-red-500 px-2 text-white hover:bg-red-600 disabled:opacity-50 sm:h-10 sm:px-3"
+            variant="destructive"
+            size="sm"
             title="Stop and save timer"
           >
-            <Square className="h-3 w-3 sm:h-4 sm:w-4" />
-          </button>
-          <span className="badge-brutal bg-white font-mono text-[10px] uppercase tracking-tight text-secondary sm:text-xs md:text-sm">
+            <Square className="h-4 w-4" />
+          </Button>
+          <Badge variant="brand" className="font-mono tabular-nums">
             {formatTimerDisplay(elapsedSeconds)}
-          </span>
-          <Link
-            href="/dashboard/time-tracker"
-            className="btn-brutal flex h-8 items-center gap-1 bg-secondary px-2 text-xs text-white sm:h-auto sm:gap-2 sm:px-3 sm:text-sm"
-          >
-            <Clock3 className="h-3 w-3 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">Open Tracker</span>
-            <span className="sm:hidden">Open</span>
-          </Link>
+          </Badge>
+          <Button asChild variant="default" size="sm">
+            <Link href="/dashboard/time-tracker">
+              <Clock3 className="h-4 w-4" />
+              <span className="hidden sm:inline">Open Tracker</span>
+              <span className="sm:hidden">Open</span>
+            </Link>
+          </Button>
         </div>
       </div>
     </div>

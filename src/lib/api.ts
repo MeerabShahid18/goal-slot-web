@@ -405,6 +405,444 @@ export const labelsApi = {
   getForGoal: (goalId: string) => api.get(`/labels/goals/${goalId}`),
 }
 
+// ---------------------------------------------------------------------------
+// Coach API (BYOK + Habits + Check-ins + Reflections + Journal + Narrative + Chat)
+// ---------------------------------------------------------------------------
+
+export type CoachProviderEnum = 'OPENAI' | 'ANTHROPIC'
+export type CoachByokStatus = 'unset' | 'active'
+
+export interface CoachByokStateDto {
+  status: CoachByokStatus
+  provider: CoachProviderEnum | null
+  maskedKey: string | null
+  tokensUsed: number | null
+  tokensLimit: number | null
+  selectedModel?: string | null
+  allowedModels?: string[]
+  effectiveModel?: string | null
+}
+
+export interface CoachByokUsageDto {
+  tokensUsed: number
+  tokensLimit: number
+  windowStart: string
+}
+
+export type ReligiousContextEnum =
+  | 'NONE'
+  | 'ISLAM'
+  | 'CHRISTIANITY'
+  | 'HINDUISM'
+  | 'BUDDHISM'
+  | 'JUDAISM'
+  | 'SECULAR'
+  | 'OTHER'
+
+export interface CoachHabitsProfileDto {
+  id?: string
+  userId?: string
+  why?: string
+  phoneBlockerInstalled?: boolean
+  distractingSubsCancelled?: boolean
+  websiteBlockerUrls?: string
+  sleepTargetHours?: number
+  bedtime?: string
+  wakeTime?: string
+  workEnvironment?: string
+  additionalContext?: string
+  religiousContext?: ReligiousContextEnum
+  spiritualNotes?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+// Coach Insights
+export type CoachInsightKindEnum =
+  | 'OBSERVATION'
+  | 'SUGGESTION'
+  | 'EXPERIMENT'
+  | 'MEDIA_PROMPT'
+
+export type CoachInsightStatusEnum =
+  | 'PROPOSED'
+  | 'ACCEPTED'
+  | 'DOING'
+  | 'DONE'
+  | 'DISMISSED'
+  | 'SAVED'
+
+export type CoachInsightMediaSlot =
+  | 'BREAKFAST'
+  | 'LUNCH'
+  | 'EVENING'
+  | 'BEDTIME'
+  | 'ANY'
+
+export type CoachInsightMediaTopic =
+  | 'MINDSET'
+  | 'CRAFT'
+  | 'SPIRITUAL'
+  | 'HABITS'
+  | 'STRESS'
+  | 'SLEEP'
+  | 'DOPAMINE'
+
+export type CoachInsightStatusFilter =
+  | 'ACTIVE'
+  | 'PROPOSED'
+  | 'ACCEPTED'
+  | 'DOING'
+  | 'DONE'
+  | 'DISMISSED'
+  | 'SAVED'
+  | 'ALL'
+
+export interface CoachInsightDto {
+  id: string
+  scopeKey: string
+  kind: CoachInsightKindEnum
+  title: string
+  body: string
+  evidence: string
+  suggestedAction: string | null
+  mediaSlot: CoachInsightMediaSlot | null
+  mediaTopic: CoachInsightMediaTopic | null
+  status: CoachInsightStatusEnum
+  acceptedAt: string | null
+  startedDoingAt: string | null
+  completedAt: string | null
+  dismissedAt: string | null
+  savedAt: string | null
+  userNote: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CoachDailyCheckin {
+  id?: string
+  date: string
+  mood: number
+  energy: number
+  focus: number
+  blocked?: string | null
+  worked?: string | null
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface CoachGoalReflection {
+  id?: string
+  goalId: string
+  weekKey: string
+  feel: number
+  worked?: string | null
+  blocked?: string | null
+  nextWeekFocus?: string | null
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface CoachJournalEntryDto {
+  id: string
+  date: string
+  mood: number | null
+  energy: number | null
+  content: string
+  createdAt?: string
+  updatedAt: string
+}
+
+export interface CoachMessageDto {
+  id: string
+  scopeKey: string
+  role: 'USER' | 'ASSISTANT' | 'SYSTEM_NARRATIVE'
+  content: string
+  promptTokens?: number | null
+  completionTokens?: number | null
+  model?: string | null
+  createdAt: string
+}
+
+export interface CoachStreamChunk {
+  delta: string
+  done: boolean
+  usage?: { promptTokens: number; completionTokens: number }
+  error?: string
+}
+
+export type CoachProposalActionType =
+  | 'RENAME_GOAL'
+  | 'UPDATE_GOAL'
+  | 'CREATE_GOAL'
+  | 'DELETE_GOAL'
+  | 'CREATE_SCHEDULE_BLOCK'
+  | 'UPDATE_SCHEDULE_BLOCK'
+  | 'DELETE_SCHEDULE_BLOCK'
+  | 'CREATE_TIME_ENTRY'
+  | 'UPDATE_TIME_ENTRY'
+  | 'DELETE_TIME_ENTRY'
+  | 'CREATE_TASK'
+  | 'UPDATE_TASK'
+  | 'DELETE_TASK'
+  | 'CREATE_PRACTICE'
+
+export interface CoachProposalAction {
+  type: CoachProposalActionType
+  id?: string
+  payload?: Record<string, unknown>
+}
+
+export interface CoachProposalResult {
+  index: number
+  type: CoachProposalActionType
+  ok: boolean
+  resultId?: string
+  error?: string
+}
+
+export interface CoachProposalBlock {
+  summary?: string
+  actions: CoachProposalAction[]
+}
+
+const API_BASE_URL = `${API_URL}/api`
+
+function getAuthToken(): string | null {
+  if (typeof window === 'undefined') return null
+  return localStorage.getItem('accessToken')
+}
+
+/**
+ * Stream NestJS @Sse() responses framed as `data: {...}\n\n`.
+ * Handles partial frames straddling chunk boundaries by holding an
+ * accumulating buffer and only consuming up to the last `\n\n`.
+ */
+async function* parseCoachSseStream(
+  response: Response,
+  signal?: AbortSignal,
+): AsyncGenerator<CoachStreamChunk, void, void> {
+  if (!response.body) {
+    throw new Error('Response has no body to stream')
+  }
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder('utf-8')
+  let buffer = ''
+  try {
+    while (true) {
+      if (signal?.aborted) {
+        await reader.cancel()
+        return
+      }
+      const { value, done } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+
+      // Parse complete SSE frames separated by a blank line (\n\n).
+      // Tolerate \r\n line endings.
+      const normalized = buffer.replace(/\r\n/g, '\n')
+      buffer = ''
+      const frames = normalized.split('\n\n')
+      // Last element may be a partial frame — push it back into the buffer.
+      const tail = frames.pop() ?? ''
+      buffer = tail
+      for (const frame of frames) {
+        const trimmed = frame.trim()
+        if (!trimmed) continue
+        // A frame may contain multiple lines; concatenate `data:` payloads.
+        const dataLines: string[] = []
+        for (const line of trimmed.split('\n')) {
+          if (line.startsWith('data:')) {
+            dataLines.push(line.slice(5).trimStart())
+          }
+        }
+        if (dataLines.length === 0) continue
+        const payload = dataLines.join('\n')
+        try {
+          const parsed = JSON.parse(payload)
+          // NestJS @Sse() wraps the payload in { data: ... }; tolerate either shape.
+          const inner = parsed && typeof parsed === 'object' && 'data' in parsed ? parsed.data : parsed
+          yield inner as CoachStreamChunk
+        } catch {
+          // Ignore malformed frames rather than killing the stream.
+        }
+      }
+    }
+    // Flush any leftover trailing data after stream close (rare).
+    const final = buffer.trim()
+    if (final) {
+      const lines = final.split('\n')
+      const dataLines: string[] = []
+      for (const line of lines) {
+        if (line.startsWith('data:')) dataLines.push(line.slice(5).trimStart())
+      }
+      if (dataLines.length) {
+        try {
+          const parsed = JSON.parse(dataLines.join('\n'))
+          const inner = parsed && typeof parsed === 'object' && 'data' in parsed ? parsed.data : parsed
+          yield inner as CoachStreamChunk
+        } catch {
+          /* swallow */
+        }
+      }
+    }
+  } finally {
+    try {
+      reader.releaseLock()
+    } catch {
+      /* noop */
+    }
+  }
+}
+
+async function postCoachStream(
+  path: string,
+  body: unknown,
+  signal?: AbortSignal,
+): Promise<AsyncGenerator<CoachStreamChunk, void, void>> {
+  const token = getAuthToken()
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Accept: 'text/event-stream',
+  }
+  if (token) headers.Authorization = `Bearer ${token}`
+
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'POST',
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+    signal,
+  })
+
+  if (!res.ok) {
+    let message = `Request failed (${res.status})`
+    try {
+      const data = await res.json()
+      if (data?.message) message = Array.isArray(data.message) ? data.message.join(', ') : String(data.message)
+    } catch {
+      /* ignore */
+    }
+    const err: Error & { status?: number } = new Error(message)
+    err.status = res.status
+    throw err
+  }
+
+  return parseCoachSseStream(res, signal)
+}
+
+export const coachApi = {
+  // BYOK
+  getByokKey: () => api.get<CoachByokStateDto>('/coach/byok-key'),
+  saveByokKey: (data: { provider: CoachProviderEnum; apiKey: string }) =>
+    api.post<CoachByokStateDto>('/coach/byok-key', data),
+  deleteByokKey: () => api.delete<{ success: boolean }>('/coach/byok-key'),
+  getByokUsage: () => api.get<CoachByokUsageDto>('/coach/byok-key/usage'),
+  updateByokBudget: (tokensLimit: number) =>
+    api.patch<CoachByokStateDto>('/coach/byok-key/budget', { tokensLimit }),
+  updateByokModel: (model: string) =>
+    api.patch<CoachByokStateDto>('/coach/byok-key/model', { model }),
+
+  // Habits profile
+  getHabitsProfile: () => api.get<CoachHabitsProfileDto>('/coach/habits-profile'),
+  updateHabitsProfile: (data: Partial<CoachHabitsProfileDto>) =>
+    api.put<CoachHabitsProfileDto>('/coach/habits-profile', data),
+
+  // Daily check-ins
+  listCheckins: (params?: { from?: string; to?: string }) =>
+    api.get<CoachDailyCheckin[]>('/coach/checkins', { params }),
+  getTodayCheckin: () => api.get<CoachDailyCheckin | null>('/coach/checkins/today'),
+  upsertCheckin: (data: {
+    date: string
+    mood: number
+    energy: number
+    focus: number
+    blocked?: string
+    worked?: string
+  }) => api.post<CoachDailyCheckin>('/coach/checkins', data),
+
+  // Goal reflections
+  getGoalReflection: (goalId: string, weekKey?: string) =>
+    api.get<CoachGoalReflection | null>(`/coach/goals/${goalId}/reflections`, {
+      params: weekKey ? { weekKey } : undefined,
+    }),
+  getGoalReflectionHistory: (goalId: string) =>
+    api.get<CoachGoalReflection[]>(`/coach/goals/${goalId}/reflections/history`),
+  upsertGoalReflection: (
+    goalId: string,
+    data: {
+      weekKey: string
+      feel: number
+      worked?: string
+      blocked?: string
+      nextWeekFocus?: string
+    },
+  ) => api.post<CoachGoalReflection>(`/coach/goals/${goalId}/reflections`, data),
+
+  // Journal
+  listJournalEntries: (params?: { from?: string; to?: string }) =>
+    api.get<CoachJournalEntryDto[]>('/coach/journal/entries', { params }),
+  getJournalEntry: (date: string) => api.get<CoachJournalEntryDto>(`/coach/journal/entries/${date}`),
+  upsertJournalEntry: (data: { date: string; mood?: number | null; energy?: number | null; content?: string }) =>
+    api.post<CoachJournalEntryDto>('/coach/journal/entries', data),
+  updateJournalContent: (date: string, content: string) =>
+    api.put<CoachJournalEntryDto>(`/coach/journal/entries/${date}/content`, { content }),
+  updateJournalMood: (date: string, mood: number | null, energy: number | null) =>
+    api.put<CoachJournalEntryDto>(`/coach/journal/entries/${date}/mood`, { mood, energy }),
+  deleteJournalEntry: (date: string) =>
+    api.delete<{ success: boolean }>(`/coach/journal/entries/${date}`),
+
+  // Narrative (GET = cached, POST = SSE stream)
+  getNarrative: (scopeKey: string) => api.get<CoachMessageDto>(`/coach/narrative/${scopeKey}`),
+  streamNarrative: (scopeKey: string, opts?: { force?: boolean; signal?: AbortSignal }) =>
+    postCoachStream(
+      `/coach/narrative/${scopeKey}${opts?.force ? '?force=true' : ''}`,
+      undefined,
+      opts?.signal,
+    ),
+
+  // Chat
+  // Backend returns { messages: CoachMessageDto[] } — normalize to a plain
+  // array at the boundary so consumers (e.g. ChatSection) can always treat
+  // res.data as an array.
+  getChatHistory: async (scopeKey: string) => {
+    const res = await api.get<{ messages?: CoachMessageDto[] } | CoachMessageDto[]>(
+      `/coach/chat/${scopeKey}`,
+    )
+    const raw = res.data as { messages?: CoachMessageDto[] } | CoachMessageDto[] | null | undefined
+    const messages = Array.isArray(raw) ? raw : raw?.messages ?? []
+    return { ...res, data: messages }
+  },
+  clearChatHistory: (scopeKey: string) =>
+    api.delete<{ success: true }>(`/coach/chat/${scopeKey}`),
+  truncateChatFrom: (scopeKey: string, messageId: string) =>
+    api.delete<{ deleted: number }>(`/coach/chat/${scopeKey}/messages/from/${messageId}`),
+  saveChatMessageAsInsight: (scopeKey: string, messageId: string, title?: string) =>
+    api.post<CoachInsightDto>(
+      `/coach/chat/${scopeKey}/messages/${messageId}/save`,
+      title ? { title } : {},
+    ),
+  streamChat: (scopeKey: string, content: string, opts?: { signal?: AbortSignal }) =>
+    postCoachStream(`/coach/chat/${scopeKey}`, { content }, opts?.signal),
+
+  // Coach Proposals — apply Coach-emitted structured action batches
+  applyProposals: (
+    actions: CoachProposalAction[],
+    sourceMessageId?: string,
+  ) =>
+    api.post<{ results: CoachProposalResult[] }>('/coach/proposals/apply', {
+      actions,
+      ...(sourceMessageId ? { sourceMessageId } : {}),
+    }),
+
+  // Coach Insights
+  listInsights: (status?: CoachInsightStatusFilter) =>
+    api.get<CoachInsightDto[]>('/coach/insights', { params: status ? { status } : undefined }),
+  getInsight: (id: string) => api.get<CoachInsightDto>(`/coach/insights/${id}`),
+  updateInsightStatus: (id: string, status: CoachInsightStatusEnum, note?: string) =>
+    api.post<CoachInsightDto>(`/coach/insights/${id}/status`, { status, note }),
+  deleteInsight: (id: string) => api.delete<{ success: true }>(`/coach/insights/${id}`),
+}
+
 // Notes API
 export const notesApi = {
   getAll: () => api.get('/notes'),
