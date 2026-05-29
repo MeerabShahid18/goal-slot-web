@@ -1,6 +1,8 @@
 'use client'
 
 import { useCategoriesQuery } from '@/features/categories'
+import { ActivePracticeReminders } from '@/features/dashboard/components/active-practice-reminders'
+import { DailyCheckinCard } from '@/features/dashboard/components/daily-checkin-card'
 import { DashboardGoals } from '@/features/dashboard/components/dashboard-goals'
 import { DashboardHeader } from '@/features/dashboard/components/dashboard-header'
 import { DashboardRecentActivity } from '@/features/dashboard/components/dashboard-recent-activity'
@@ -9,6 +11,7 @@ import { DashboardStats } from '@/features/dashboard/components/dashboard-stats'
 import { useDashboardData } from '@/features/dashboard/hooks/use-dashboard-queries'
 
 import { Loading } from '@/components/ui/loading'
+import { PageShell } from '@/components/ui/page-shell'
 
 export function DashboardPage() {
   const { data: categories = [] } = useCategoriesQuery()
@@ -23,12 +26,16 @@ export function DashboardPage() {
   }
 
   return (
-    <div className="space-y-4 p-4 sm:space-y-6 sm:p-6 md:space-y-8">
+    <PageShell>
+      <DailyCheckinCard />
+
+      <ActivePracticeReminders />
+
       <DashboardHeader />
 
       <DashboardStats stats={stats} />
 
-      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <DashboardGoals goals={goals} categories={categories} />
 
         <div className="space-y-6">
@@ -36,6 +43,6 @@ export function DashboardPage() {
           <DashboardScheduleCTA />
         </div>
       </div>
-    </div>
+    </PageShell>
   )
 }

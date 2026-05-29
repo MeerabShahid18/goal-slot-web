@@ -1,13 +1,18 @@
+'use client'
+
 import Link from 'next/link'
 
 import { format } from 'date-fns'
-import { Clock, Plus, Tag } from 'lucide-react'
+import { Clock, Plus } from 'lucide-react'
+
+import { CategoriesButton } from '@/features/categories/components/categories-button'
+import { Button } from '@/components/ui/button'
+import { PageHeader } from '@/components/ui/page-header'
 
 export function DashboardHeader() {
   const today = format(new Date(), 'EEEE, MMMM d, yyyy')
 
   return (
-<<<<<<< Updated upstream
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h1 className="font-display text-2xl font-bold uppercase sm:text-3xl md:text-4xl">Dashboard</h1>
@@ -29,7 +34,6 @@ export function DashboardHeader() {
         </Link>
       </div>
     </div>
-=======
     <PageHeader
       eyebrow="Today"
       title="Dashboard"
@@ -44,7 +48,9 @@ export function DashboardHeader() {
             </Link>
           </Button>
           <Button asChild variant="brand" size="sm">
+
             <Link href="/dashboard/goals?open=create">
+
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">New Goal</span>
             </Link>
@@ -52,6 +58,6 @@ export function DashboardHeader() {
         </>
       }
     />
->>>>>>> Stashed changes
+
   )
 }

@@ -12,13 +12,18 @@ import {
   LabelInput,
 } from '@/features/goals/utils/types'
 import { useDeleteLabelMutation, useLabelsQuery, useUpdateLabelMutation } from '@/features/labels'
-import { Calendar, Check, Clock, Pencil, Trash2, X } from 'lucide-react'
+import { Calendar, Check, Clock, Pencil, Sparkles, Trash2, X } from 'lucide-react'
 
 import { COLOR_OPTIONS } from '@/lib/utils'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { TiptapEditor } from '@/components/tiptap-editor/tiptap-editor'
+import { WeeklyReflectionModal } from '@/features/goals/components/weekly-reflection-modal'
 
 interface GoalModalProps {
   isOpen: boolean
@@ -57,6 +62,7 @@ export function GoalModal({ isOpen, onClose, goal }: GoalModalProps) {
   const [editingLabelName, setEditingLabelName] = useState('')
   const [editingLabelColor, setEditingLabelColor] = useState('')
   const [deleteLabelId, setDeleteLabelId] = useState<string | null>(null)
+  const [isReflectionOpen, setIsReflectionOpen] = useState(false)
   const labelInputRef = useRef<HTMLInputElement>(null)
   const suggestionsRef = useRef<HTMLDivElement>(null)
   const createMutation = useCreateGoalMutation()
@@ -201,9 +207,22 @@ export function GoalModal({ isOpen, onClose, goal }: GoalModalProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="modal-brutal flex max-h-[90vh] w-[95vw] max-w-2xl flex-col overflow-hidden p-0 sm:w-full">
+      <DialogContent className="flex max-h-[90vh] w-[95vw] max-w-2xl flex-col overflow-hidden p-0 sm:w-full">
         <DialogHeader className="mb-3 flex-shrink-0 px-6 pt-6">
-          <DialogTitle className="text-xl font-bold uppercase">{goal ? 'Edit Goal' : 'New Goal'}</DialogTitle>
+          <div className="flex items-center justify-between gap-3 pr-8">
+            <DialogTitle className="text-xl font-semibold text-zinc-900">{goal ? 'Edit Goal' : 'New Goal'}</DialogTitle>
+            {goal && (
+              <Button
+                type="button"
+                variant="brand"
+                size="sm"
+                onClick={() => setIsReflectionOpen(true)}
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                Weekly reflection
+              </Button>
+            )}
+          </div>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
@@ -212,15 +231,16 @@ export function GoalModal({ isOpen, onClose, goal }: GoalModalProps) {
             {/* Two column layout - responsive: single column on mobile, two columns on md+ */}
             <div className="grid grid-cols-1 gap-x-4 gap-y-4 md:grid-cols-2 md:gap-x-6">
               {/* Left column */}
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {/* Title */}
                 <div>
-                  <label className="mb-1.5 block text-xs font-bold uppercase">Title</label>
-                  <input
+                  <Label className="mb-1.5 block text-[10px] tracking-wider">
+                    Title <span className="text-[#f2cc0d]">*</span>
+                  </Label>
+                  <Input
                     type="text"
                     value={form.title}
                     onChange={(e) => updateField('title', e.target.value)}
-                    className="input-brutal w-full py-2"
                     placeholder="e.g., Learn Rust"
                     required
                   />
@@ -228,32 +248,33 @@ export function GoalModal({ isOpen, onClose, goal }: GoalModalProps) {
 
                 {/* Category */}
                 <div>
-                  <label className="mb-1.5 block text-xs font-bold uppercase">Category</label>
-                  <Select value={form.category} onValueChange={(value) => updateField('category', value)}>
-                    <SelectTrigger className="input-brutal w-full py-2">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((cat) => (
-                        <SelectItem key={cat.value} value={cat.value}>
-                          {cat.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label className="mb-1.5 block text-[10px] tracking-wider">Category</Label>
+                  <SearchableSelect
+                    value={form.category}
+                    onChange={(value) => updateField('category', value)}
+                    placeholder="Select category"
+                    options={categories.map((cat) => ({
+                      value: cat.value,
+                      label: cat.name,
+                      hint: cat.value,
+                      color: cat.color || undefined,
+                    }))}
+                  />
                 </div>
 
                 {/* Target Hours & Deadline row */}
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                    <label className="mb-1.5 block text-xs font-bold uppercase">Target Hours</label>
+                    <Label className="mb-1.5 block text-[10px] tracking-wider">
+                      Target Hours <span className="text-[#f2cc0d]">*</span>
+                    </Label>
                     <div className="relative">
-                      <Clock className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-                      <input
+                      <Clock className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                      <Input
                         type="number"
                         value={form.targetHours}
                         onChange={(e) => updateField('targetHours', e.target.value)}
-                        className="input-brutal w-full py-2 pl-8"
+                        className="pl-8"
                         placeholder="100"
                         min="1"
                         required
@@ -261,14 +282,14 @@ export function GoalModal({ isOpen, onClose, goal }: GoalModalProps) {
                     </div>
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-xs font-bold uppercase">Deadline</label>
+                    <Label className="mb-1.5 block text-[10px] tracking-wider">Deadline</Label>
                     <div className="relative">
-                      <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-                      <input
+                      <Calendar className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                      <Input
                         type="date"
                         value={form.deadline}
                         onChange={(e) => updateField('deadline', e.target.value)}
-                        className="input-brutal w-full py-2 pl-8 text-sm"
+                        className="pl-8"
                       />
                     </div>
                   </div>
@@ -277,9 +298,9 @@ export function GoalModal({ isOpen, onClose, goal }: GoalModalProps) {
                 {/* Status - Only show when editing */}
                 {goal && (
                   <div>
-                    <label className="mb-1.5 block text-xs font-bold uppercase">Status</label>
+                    <Label className="mb-1.5 block text-[10px] tracking-wider">Status</Label>
                     <Select value={form.status} onValueChange={(value) => updateField('status', value as GoalStatus)}>
-                      <SelectTrigger className="input-brutal w-full py-2">
+                      <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -295,15 +316,15 @@ export function GoalModal({ isOpen, onClose, goal }: GoalModalProps) {
               </div>
 
               {/* Right column */}
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {/* Labels */}
                 <div>
-                  <label className="mb-1.5 block text-xs font-bold uppercase">Labels</label>
+                  <Label className="mb-1.5 block text-[10px] tracking-wider">Labels</Label>
 
                   {/* Label input with color picker */}
                   <div className="flex flex-col gap-2 sm:flex-row">
                     <div className="relative flex-1">
-                      <input
+                      <Input
                         ref={labelInputRef}
                         type="text"
                         value={labelInput}
@@ -321,21 +342,20 @@ export function GoalModal({ isOpen, onClose, goal }: GoalModalProps) {
                           }
                         }}
                         placeholder="Type or click to browse..."
-                        className="input-brutal w-full py-2"
                       />
 
                       {/* Suggestions dropdown - show when focused */}
                       {showLabelSuggestions && (labelSuggestions.length > 0 || labelInput.trim()) && (
                         <div
                           ref={suggestionsRef}
-                          className="absolute z-50 mt-1 max-h-64 w-full overflow-y-auto border-3 border-black bg-white shadow-brutal"
+                          className="absolute z-50 mt-1 max-h-64 w-full overflow-y-auto border border-zinc-200 bg-white shadow-lg"
                         >
                           {/* Existing labels */}
                           {labelSuggestions.map((suggestion) => (
                             <div key={suggestion.id} className="group">
                               {editingLabelId === suggestion.id ? (
                                 // Edit mode
-                                <div className="border-b border-gray-200 p-2">
+                                <div className="border-b border-zinc-200 p-2">
                                   <input
                                     type="text"
                                     value={editingLabelName}
@@ -446,7 +466,7 @@ export function GoalModal({ isOpen, onClose, goal }: GoalModalProps) {
                                   setLabelInput('')
                                   setShowLabelSuggestions(false)
                                 }}
-                                className="flex w-full items-center gap-2 border-t border-gray-200 px-3 py-2 text-left text-sm hover:bg-gray-100"
+                                className="flex w-full items-center gap-2 border-t border-zinc-200 px-3 py-2 text-left text-sm hover:bg-gray-100"
                               >
                                 <span className="text-gray-500">Create</span>
                                 <span
@@ -465,8 +485,9 @@ export function GoalModal({ isOpen, onClose, goal }: GoalModalProps) {
                     </div>
 
                     {/* Add button */}
-                    <button
+                    <Button
                       type="button"
+                      variant="secondary"
                       onClick={() => {
                         if (labelInput.trim()) {
                           addLabel(labelInput.trim())
@@ -474,15 +495,14 @@ export function GoalModal({ isOpen, onClose, goal }: GoalModalProps) {
                         }
                       }}
                       disabled={!labelInput.trim()}
-                      className="btn-brutal-secondary px-3 py-2 text-xs disabled:opacity-50"
                     >
                       Add
-                    </button>
+                    </Button>
                   </div>
 
                   {/* Color picker for new labels */}
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                    <span className="text-[10px] text-gray-500">Label Color:</span>
+                    <span className="text-[10px] text-zinc-500">Label Color:</span>
                     {LABEL_COLORS.map((c) => (
                       <button
                         key={c.value}
@@ -526,7 +546,7 @@ export function GoalModal({ isOpen, onClose, goal }: GoalModalProps) {
 
                 {/* Goal Color */}
                 <div>
-                  <label className="mb-1.5 block text-xs font-bold uppercase">Goal Color</label>
+                  <Label className="mb-1.5 block text-[10px] tracking-wider">Goal Color</Label>
                   <div className="flex flex-wrap gap-2">
                     {COLOR_OPTIONS.map((c) => (
                       <button
@@ -534,7 +554,7 @@ export function GoalModal({ isOpen, onClose, goal }: GoalModalProps) {
                         type="button"
                         onClick={() => updateField('color', c)}
                         className={`h-5 w-5 rounded border transition-transform hover:scale-110 ${
-                          form.color === c ? 'ring-2 ring-black ring-offset-1' : 'border-gray-300'
+                          form.color === c ? 'ring-2 ring-zinc-900 ring-offset-1' : 'border-zinc-300'
                         }`}
                         style={{ backgroundColor: c }}
                       />
@@ -546,7 +566,7 @@ export function GoalModal({ isOpen, onClose, goal }: GoalModalProps) {
 
             {/* Description - Full width below two-column layout */}
             <div className="mt-4">
-              <label className="mb-1.5 block text-xs font-bold uppercase">Description</label>
+              <Label className="mb-1.5 block text-[10px] tracking-wider">Description</Label>
               <div className="bg-white">
                 <TiptapEditor
                   content={form.description}
@@ -559,14 +579,14 @@ export function GoalModal({ isOpen, onClose, goal }: GoalModalProps) {
           </div>
 
           {/* Footer buttons - fixed at bottom */}
-          <div className="mt-5 flex flex-shrink-0 flex-col gap-3 border-t-3 border-secondary px-6 pb-6 pt-4 sm:flex-row-reverse">
-            <button type="submit" disabled={isSubmitting} className="btn-brutal-dark flex-1 py-2.5">
-              {isSubmitting ? 'Saving...' : goal ? 'Update Goal' : 'Create Goal'}
-            </button>
-            <button type="button" onClick={onClose} className="btn-brutal-secondary flex-1 py-2.5">
+          <DialogFooter className="mt-5 flex flex-shrink-0 flex-col gap-3 border-t border-zinc-200 px-6 pb-6 pt-4 sm:flex-row">
+            <Button type="button" variant="secondary" onClick={onClose} className="flex-1">
               Cancel
-            </button>
-          </div>
+            </Button>
+            <Button type="submit" variant="brand" disabled={isSubmitting} className="flex-1">
+              {isSubmitting ? 'Saving...' : goal ? 'Update Goal' : 'Create Goal'}
+            </Button>
+          </DialogFooter>
         </form>
       </DialogContent>
 
@@ -581,6 +601,9 @@ export function GoalModal({ isOpen, onClose, goal }: GoalModalProps) {
         variant="destructive"
         isLoading={deleteLabelMutation.isPending}
       />
+
+      {/* Weekly Reflection Modal (only meaningful when editing an existing goal) */}
+      <WeeklyReflectionModal goal={goal} open={isReflectionOpen} onOpenChange={setIsReflectionOpen} />
     </Dialog>
   )
 }
