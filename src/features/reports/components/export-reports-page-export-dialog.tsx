@@ -20,7 +20,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { toast } from 'react-hot-toast';
+import { toast } from 'react-hot-toast'
 
 export interface ExportReportsPageExportDialogProps {
   filters: ReportFilters
@@ -206,15 +206,14 @@ export function ExportReportsPageExportDialog({
               printWindow.document.write(html)
               printWindow.document.close()
             }
-          } catch{
-             toast.error('Could not generate PDF. Please try again')
+          } catch {
+            toast.error('Could not generate PDF. Please try again')
           }
-
         }
-
+        
         setOpen(false)
-      } catch{
-        console.error('Export failed')
+      } catch {
+        toast.error('Export failed')
       }
     },
     [

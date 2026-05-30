@@ -11,7 +11,7 @@ import { formatDuration } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import DateRangePicker from '@/components/DateRangePicker'
 import type { DateRangeValue } from '@/components/DateRangePicker/types'
-import { toast } from 'react-hot-toast';
+import { toast } from 'react-hot-toast'
 
 function buildAndDownloadCSV(entries: SharedTimeEntry[], fileName: string): void {
   const headers = ['Date', 'Duration', 'Goal', 'Task']
@@ -55,7 +55,7 @@ export function SharedReportExport({ userId, userName }: SharedReportExportProps
 
       const fileName = `${userName}-time-report-${exportDateRange.startDate}-to-${exportDateRange.endDate}.csv`
       buildAndDownloadCSV(rawEntries, fileName)
-    } catch{
+    } catch {
       toast.error('Could not export shared report. Please try again')
     } finally {
       setIsExporting(false)

@@ -92,6 +92,7 @@ export function useCreateGoalMutation() {
       if (context?.previous) {
         restoreGoals(queryClient, context.previous)
       }
+      toast.error('Failed to create goal')
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: goalQueries.all })
@@ -111,8 +112,9 @@ export function useUpdateGoalMutation() {
     onMutate: async ({ id, data }) => {
       await queryClient.cancelQueries({ queryKey: goalQueries.all })
       const previous = queryClient.getQueriesData({ queryKey: goalQueries.all })
-      const allGoals = (previous as [readonly unknown[], Goal[]][])
-        .flatMap(([, list]) => (Array.isArray(list) ? list : []))
+      const allGoals = (previous as [readonly unknown[], Goal[]][]).flatMap(([, list]) =>
+        Array.isArray(list) ? list : [],
+      )
       const original = allGoals.find((g) => g.id === id)
 
       if (original) {

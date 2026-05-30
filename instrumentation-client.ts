@@ -10,6 +10,5 @@ posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY!, {
     maskAllInputs: true,
     maskTextSelector: '[data-private]',
   },
-  process.env.NEXT_PUBLIC_POSTHOG_DEBUG === 'true' &&
-  process.env.NODE_ENV !== 'production',
+  debug: process.env.NEXT_PUBLIC_POSTHOG_DEBUG === 'true' && process.env.NODE_ENV !== 'production',
 })

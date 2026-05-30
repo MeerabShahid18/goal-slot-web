@@ -30,7 +30,7 @@ export function ExportReportsPage() {
       const stored = typeof window !== 'undefined' ? window.localStorage.getItem(HOURLY_RATE_STORAGE_KEY) : null
       if (stored) setHourlyRateInput(stored)
     } catch {
-   // Ignore invalid saved hourly rate
+      // Ignore invalid saved hourly rate
     }
   }, [])
 
