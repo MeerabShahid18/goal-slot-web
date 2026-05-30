@@ -97,7 +97,7 @@ export function GoalsPage() {
     if(searchParams.get('open')==='create') {
       setShowModal(true)
     }
-  },[])
+  },[searchParams])
 
   return (
     <PageShell>
