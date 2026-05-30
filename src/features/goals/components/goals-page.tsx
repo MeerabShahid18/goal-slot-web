@@ -1,12 +1,7 @@
 'use client'
 
-
-
-
-import { useMemo, useState, useEffect } from 'react'
-import {useSearchParams} from 'next/navigation'
-
-
+import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 
 import { GoalModal } from '@/features/goals/components/goal-modal'
 import { GoalsFilters } from '@/features/goals/components/goals-filters'
@@ -25,6 +20,15 @@ export function GoalsPage() {
   const [filters, setFilters] = useState<GoalFilters>({ status: 'ACTIVE' })
   const [showModal, setShowModal] = useState(false)
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null)
+  
+  const router = useRouter()
+  const searchParams = useSearchParams()
+
+  useEffect(() => {
+    if (searchParams.get('open') === 'create') {
+      setShowModal(true)
+    }
+  }, [searchParams])
 
   const goalsQuery = useGoalsQuery(filters)
   const activeGoalsQuery = useGoalsQuery({ status: 'ACTIVE' })
@@ -86,18 +90,12 @@ export function GoalsPage() {
   const handleCloseModal = () => {
     setShowModal(false)
     setEditingGoal(null)
+    router.replace('/dashboard/goals')
   }
 
   const handleFilterChange = (newFilters: GoalFilters) => {
     setFilters(newFilters)
   }
-  const searchParams = useSearchParams()
-
-  useEffect(()=>{
-    if(searchParams.get('open')==='create') {
-      setShowModal(true)
-    }
-  },[searchParams])
 
   return (
     <PageShell>
