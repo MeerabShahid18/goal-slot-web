@@ -92,7 +92,6 @@ export function useCreateGoalMutation() {
       if (context?.previous) {
         restoreGoals(queryClient, context.previous)
       }
-      toast.error(error?.response?.data?.message || 'Failed to create goal')
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: goalQueries.all })
