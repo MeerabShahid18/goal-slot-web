@@ -304,7 +304,8 @@ export function ExportReportsFilters({ state }: ExportReportsFiltersProps) {
                         if (Number.isFinite(parsed) && parsed >= 0) {
                           try {
                             window.localStorage.setItem(HOURLY_RATE_STORAGE_KEY, next)
-                          } catch (error) {
+                          } catch {
+                            toast.error('Could not save changes. Please try again')
                           }
                         }
                       }}

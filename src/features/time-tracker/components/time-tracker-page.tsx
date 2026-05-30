@@ -149,7 +149,7 @@ export function TimeTrackerPage() {
       }
 
       return response.data as Task
-    } catch (error) {
+    } catch{
       toast.error('Failed to create task')
       return null
     }

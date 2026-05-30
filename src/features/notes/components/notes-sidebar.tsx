@@ -590,7 +590,8 @@ export function NotesSidebar({ selectedNoteId, onSelectNote, className }: NotesS
       if (stored) {
         setExpandedIds(new Set(JSON.parse(stored)))
       }
-    } catch (e) {
+    } catch {
+      toast.error('Failed to load saved data')
     }
   }, [])
 

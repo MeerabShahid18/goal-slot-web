@@ -19,7 +19,7 @@ export function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T 
         // If not passing generic T, initialValue might need to be cast or handled
       }
       setIsInitialized(true);
-    } catch (error) {
+    } catch {
       setIsInitialized(true);
     }
   }, [key]);
@@ -35,7 +35,8 @@ export function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T 
       if (typeof window !== 'undefined') {
         window.localStorage.setItem(key, JSON.stringify(valueToStore));
       }
-    } catch (error) {
+    } catch{
+      // Ignore local storage write errors
     }
   };
 
