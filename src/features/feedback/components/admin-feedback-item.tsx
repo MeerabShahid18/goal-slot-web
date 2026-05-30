@@ -45,7 +45,7 @@ export const FeedbackItem = ({ feedback, onDelete }: FeedbackItemProps) => {
   }
 
   return (
-    <div className={cn('card-brutal p-2 transition-all sm:p-6', feedback.isArchived && 'opacity-60')}>
+    <div className={cn('rounded-xl border border-zinc-200 bg-white p-4 shadow-sm p-2 transition-all sm:p-6', feedback.isArchived && 'opacity-60')}>
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1">
           <div className="flex items-center gap-3">
@@ -121,7 +121,7 @@ export const FeedbackItem = ({ feedback, onDelete }: FeedbackItemProps) => {
         </div>
       </div>
 
-      <div className="mt-6 space-y-3 rounded-md border p-4" style={{ borderColor: 'var(--accents-2)' }}>
+      <div className="mt-6 space-y-3 rounded-md border border-zinc-200 p-4">
         <div className="flex items-center justify-between text-sm font-semibold text-gray-800">
           <span>Thread</span>
           <div className="flex items-center gap-2">

@@ -26,7 +26,7 @@ export function TaskProgress({ task }: TaskProgressProps) {
           </span>
         </div>
         {trackedMinutes !== undefined && trackedMinutes > 0 && (
-          <span className="flex items-center gap-1 whitespace-nowrap font-semibold text-secondary">
+          <span className="flex items-center gap-1 whitespace-nowrap font-semibold text-zinc-900">
             <CheckCircle2 className="h-2.5 w-2.5 shrink-0 sm:h-3 sm:w-3" />
             Logged {formatDuration(trackedMinutes)}
           </span>
@@ -34,8 +34,11 @@ export function TaskProgress({ task }: TaskProgressProps) {
       </div>
 
       {estimatedMinutes ? (
-        <div className="progress-brutal rounded-sm">
-          <div className={cn('progress-brutal-fill', statusStyle.fill)} style={{ width: `${progress}%` }} />
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-100">
+          <div
+            className={cn('h-full rounded-full transition-all duration-300', statusStyle.fill)}
+            style={{ width: `${progress}%` }}
+          />
         </div>
       ) : null}
     </div>

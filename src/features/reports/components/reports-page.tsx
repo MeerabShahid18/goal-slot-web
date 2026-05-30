@@ -15,6 +15,8 @@ import type { FocusGranularity } from '@/features/reports/utils/types'
 import { endOfMonth, endOfWeek, format, startOfMonth, startOfWeek } from 'date-fns'
 
 import { useLocalStorage } from '@/hooks/use-local-storage'
+import { PageHeader } from '@/components/ui/page-header'
+import { PageShell } from '@/components/ui/page-shell'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 const GROUP_BY_OPTIONS: Array<{ value: 'goal' | 'task'; label: string }> = [
@@ -56,38 +58,34 @@ export function FocusPage() {
   const dateRange = useMemo(() => getDateRangeForView(view), [view])
 
   return (
-    <div className="space-y-8 p-2 sm:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="font-display text-4xl font-bold uppercase">Focus</h1>
-          <p className="font-mono uppercase text-gray-600">Visualize your focused time</p>
-        </div>
+    <PageShell>
+      <PageHeader
+        eyebrow="Analytics"
+        title="Focus"
+        description="Visualize your focused time"
+        actions={
+          <div className="flex flex-wrap items-center gap-3">
+            <FocusFilters filters={filters} onChange={setFilters} />
 
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Filters */}
-          <FocusFilters filters={filters} onChange={setFilters} />
+            <Select value={groupBy} onValueChange={(v) => setGroupBy(v as 'goal' | 'task')}>
+              <SelectTrigger className="h-10 w-[130px]">
+                <SelectValue placeholder="Group by" />
+              </SelectTrigger>
+              <SelectContent>
+                {GROUP_BY_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-          {/* Group By Toggle */}
-          <Select value={groupBy} onValueChange={(v) => setGroupBy(v as 'goal' | 'task')}>
-            <SelectTrigger className="h-10 w-[130px] border-3 border-secondary bg-white">
-              <SelectValue placeholder="Group by" />
-            </SelectTrigger>
-            <SelectContent>
-              {GROUP_BY_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <ViewGranularityTabs value={view} onChange={setView} />
 
-          {/* View Toggle */}
-          <ViewGranularityTabs value={view} onChange={setView} />
-
-          {/* Export */}
-          <FocusReportExportDialog view={view} dateRange={dateRange} />
-        </div>
-      </div>
+            <FocusReportExportDialog view={view} dateRange={dateRange} />
+          </div>
+        }
+      />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <FocusBreakdownCard view={view} groupBy={groupBy} filters={filters} />
@@ -106,6 +104,6 @@ export function FocusPage() {
       <div className="grid grid-cols-1 gap-6">
         <FocusTaskTotalCard view={view} filters={filters} />
       </div>
-    </div>
+    </PageShell>
   )
 }
