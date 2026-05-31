@@ -2,10 +2,8 @@
 
 
 import { useEffect, useMemo, useState } from 'react'
-import dynamic from 'next/dynamic'
+
 import { useSearchParams } from 'next/navigation'
-
-
 import { useCategoriesQuery } from '@/features/categories'
 import { ManualEntryModal } from '@/features/time-tracker/components/manual-entry-modal'
 import { RecentEntries } from '@/features/time-tracker/components/recent-entries'
@@ -14,10 +12,7 @@ import { StopTimerModal } from '@/features/time-tracker/components/stop-timer-mo
 import { TaskSelector } from '@/features/time-tracker/components/task-selector'
 import { TimerControls } from '@/features/time-tracker/components/timer-controls'
 import { TimerDisplay } from '@/features/time-tracker/components/timer-display'
-const TimerSettings = dynamic(
-  () => import('@/features/time-tracker/components/timer-settings').then((m) => m.TimerSettings),
-  { ssr: false, loading: () => <div className="h-10" /> },
-)
+import { TimerSettings } from '@/features/time-tracker/components/timer-settings'
 import { useCreateTimeEntry } from '@/features/time-tracker/hooks/use-time-tracker-mutations'
 import { useTimeTrackerData } from '@/features/time-tracker/hooks/use-time-tracker-queries'
 import { useTimer } from '@/features/time-tracker/hooks/use-timer'
