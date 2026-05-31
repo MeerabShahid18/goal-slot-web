@@ -6,6 +6,7 @@ import { GROUP_BY_OPTIONS, HOURLY_RATE_STORAGE_KEY, VIEW_TYPE_OPTIONS } from '@/
 import type { ReportGroupBy, ReportViewType } from '@/features/reports/utils/types'
 import { format } from 'date-fns'
 import { Calendar, ChevronDown, DollarSign, FileText, Filter, Layers, Target, X } from 'lucide-react'
+import toast from 'react-hot-toast'
 
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -88,26 +89,27 @@ export function ExportReportsFilters({ state }: ExportReportsFiltersProps) {
     setDraftTaskIds(selectedTaskIds)
   }
 
+  // Live-apply: toggling a goal/task in the popover updates both the
+  // draft (for the popover's checked state) AND the applied selection
+  // (for the table) in the same render. No more "Apply filters" round-trip.
   const toggleDraftGoalFilter = (goalId: string) => {
-    setDraftGoalIds((prev) => (prev.includes(goalId) ? prev.filter((id) => id !== goalId) : [...prev, goalId]))
+    setDraftGoalIds((prev) => {
+      const next = prev.includes(goalId) ? prev.filter((id) => id !== goalId) : [...prev, goalId]
+      setSelectedGoalIds(next)
+      return next
+    })
   }
 
   const toggleDraftTaskFilter = (taskId: string) => {
-    setDraftTaskIds((prev) => (prev.includes(taskId) ? prev.filter((id) => id !== taskId) : [...prev, taskId]))
-  }
-
-  const applyGoalFilters = () => {
-    setSelectedGoalIds(draftGoalIds)
-    setGoalPopoverOpen(false)
-  }
-
-  const applyTaskFilters = () => {
-    setSelectedTaskIds(draftTaskIds)
-    setTaskPopoverOpen(false)
+    setDraftTaskIds((prev) => {
+      const next = prev.includes(taskId) ? prev.filter((id) => id !== taskId) : [...prev, taskId]
+      setSelectedTaskIds(next)
+      return next
+    })
   }
 
   return (
-    <div className="card-brutal">
+    <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
       <AnimateChangeInHeight>
         <div className="space-y-4">
           <div className="flex items-center gap-2">
@@ -125,7 +127,7 @@ export function ExportReportsFilters({ state }: ExportReportsFiltersProps) {
             )}
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:items-start">
+          <div className="grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2 lg:grid-cols-4 lg:items-start [&>div]:min-w-0">
             <div className="flex flex-col gap-2">
               <Label className="flex items-center gap-2">
                 <Calendar className="h-4 w-4" />
@@ -142,7 +144,7 @@ export function ExportReportsFilters({ state }: ExportReportsFiltersProps) {
             <div className="flex flex-col gap-2">
               <Label>View Type</Label>
               <Select value={viewType} onValueChange={(v) => setViewType(v as ReportViewType)}>
-                <SelectTrigger className="h-10 border-2 border-secondary text-left [&>span]:text-left">
+                <SelectTrigger className="h-10 border border-zinc-200 text-left [&>span]:text-left">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -162,7 +164,7 @@ export function ExportReportsFilters({ state }: ExportReportsFiltersProps) {
               <div className="flex flex-col gap-2">
                 <Label>Group By</Label>
                 <Select value={groupBy} onValueChange={(v) => setGroupBy(v as ReportGroupBy)}>
-                  <SelectTrigger className="h-10 border-2 border-secondary text-left [&>span]:text-left">
+                  <SelectTrigger className="h-10 border border-zinc-200 text-left [&>span]:text-left">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -184,7 +186,7 @@ export function ExportReportsFilters({ state }: ExportReportsFiltersProps) {
               <Popover open={goalPopoverOpen} onOpenChange={handleGoalPopoverOpenChange}>
                 <div className="flex w-full items-center gap-1">
                   <PopoverTrigger asChild>
-                    <Button variant="outline" className="h-10 w-full justify-between border-2 border-secondary">
+                    <Button variant="outline" className="h-10 w-full justify-between border border-zinc-200">
                       {selectedGoalIds.length > 0 ? `${selectedGoalIds.length} selected` : 'All goals'}
                       <ChevronDown className="h-4 w-4" />
                     </Button>
@@ -201,7 +203,7 @@ export function ExportReportsFilters({ state }: ExportReportsFiltersProps) {
                     </Button>
                   )}
                 </div>
-                <PopoverContent className="w-64 border-3 border-secondary bg-white p-2 shadow-brutal">
+                <PopoverContent className="w-64 border border-zinc-200 bg-white p-2 shadow-sm">
                   <div className="max-h-64 space-y-1 overflow-y-auto">
                     {goalsQuery.isLoading ? (
                       <p className="py-4 text-center text-sm text-gray-500">Loading goals…</p>
@@ -223,16 +225,11 @@ export function ExportReportsFilters({ state }: ExportReportsFiltersProps) {
                       ))
                     )}
                   </div>
-                  <div className="mt-2 border-t border-secondary/30 pt-2">
-                    <Button className="h-9 w-full" size="sm" onClick={applyGoalFilters}>
-                      Apply filters
-                    </Button>
-                  </div>
                 </PopoverContent>
               </Popover>
             </div>
 
-            <div className="flex flex-col gap-2">
+            <div className="flex min-w-0 flex-col gap-2">
               <Label className="flex items-center gap-2">
                 <Layers className="h-4 w-4" />
                 Filter by Task
@@ -240,7 +237,7 @@ export function ExportReportsFilters({ state }: ExportReportsFiltersProps) {
               <Popover open={taskPopoverOpen} onOpenChange={handleTaskPopoverOpenChange}>
                 <div className="flex w-full items-center gap-1">
                   <PopoverTrigger asChild>
-                    <Button variant="outline" className="h-10 w-full justify-between border-2 border-secondary">
+                    <Button variant="outline" className="h-10 w-full justify-between border border-zinc-200">
                       {selectedTaskIds.length > 0 ? `${selectedTaskIds.length} selected` : 'All tasks'}
                       <ChevronDown className="h-4 w-4" />
                     </Button>
@@ -257,7 +254,7 @@ export function ExportReportsFilters({ state }: ExportReportsFiltersProps) {
                     </Button>
                   )}
                 </div>
-                <PopoverContent className="w-64 border-3 border-secondary bg-white p-2 shadow-brutal">
+                <PopoverContent className="w-64 border border-zinc-200 bg-white p-2 shadow-sm">
                   <div className="max-h-64 space-y-1 overflow-y-auto">
                     {tasksQuery.isLoading ? (
                       <p className="py-4 text-center text-sm text-gray-500">Loading tasks…</p>
@@ -278,11 +275,6 @@ export function ExportReportsFilters({ state }: ExportReportsFiltersProps) {
                       ))
                     )}
                   </div>
-                  <div className="mt-2 border-t border-secondary/30 pt-2">
-                    <Button className="h-9 w-full" size="sm" onClick={applyTaskFilters}>
-                      Apply filters
-                    </Button>
-                  </div>
                 </PopoverContent>
               </Popover>
             </div>
@@ -292,7 +284,7 @@ export function ExportReportsFilters({ state }: ExportReportsFiltersProps) {
                 <DollarSign className="h-4 w-4" />
                 Billable Hours
               </Label>
-              <div className="flex items-center gap-4 rounded-lg border-2 border-secondary p-3">
+              <div className="flex items-center gap-4 rounded-lg border border-zinc-200 p-3">
                 <Switch checked={includeBillable} onCheckedChange={setIncludeBillable} />
                 <span className="text-sm">Include billing</span>
               </div>
@@ -313,12 +305,12 @@ export function ExportReportsFilters({ state }: ExportReportsFiltersProps) {
                         if (Number.isFinite(parsed) && parsed >= 0) {
                           try {
                             window.localStorage.setItem(HOURLY_RATE_STORAGE_KEY, next)
-                          } catch (error) {
-                            console.error('Failed to save hourly rate', error)
+                          } catch {
+                            toast.error('Could not save changes. Please try again')
                           }
                         }
                       }}
-                      className="w-24 border-2 border-secondary pl-7"
+                      className="w-24 border border-zinc-200 pl-7"
                     />
                   </div>
                   <span className="text-sm text-gray-500">/hour</span>
@@ -331,7 +323,7 @@ export function ExportReportsFilters({ state }: ExportReportsFiltersProps) {
                 <Calendar className="h-4 w-4" />
                 Schedule Blocks
               </Label>
-              <div className="flex items-center gap-4 rounded-lg border-2 border-secondary p-3">
+              <div className="flex items-center gap-4 rounded-lg border border-zinc-200 p-3">
                 <Switch checked={showScheduleContext} onCheckedChange={setShowScheduleContext} />
                 <span className="text-sm">Show schedule context</span>
               </div>
@@ -345,7 +337,7 @@ export function ExportReportsFilters({ state }: ExportReportsFiltersProps) {
                 <FileText className="h-4 w-4" />
                 Task Notes
               </Label>
-              <div className="flex items-center gap-4 rounded-lg border-2 border-secondary p-3">
+              <div className="flex items-center gap-4 rounded-lg border border-zinc-200 p-3">
                 <Switch checked={includeTaskNotes} onCheckedChange={setIncludeTaskNotes} />
                 <span className="text-sm">Include task notes</span>
               </div>

@@ -21,8 +21,8 @@ export const onRequestError = async (err, request, _context) => {
           const decodedCookie = decodeURIComponent(postHogCookieMatch[1])
           const postHogData = JSON.parse(decodedCookie)
           distinctId = postHogData.distinct_id
-        } catch (e) {
-          console.error('Error parsing PostHog cookie:', e)
+        } catch {
+          // Ignore malformed PostHog cookie
         }
       }
     }

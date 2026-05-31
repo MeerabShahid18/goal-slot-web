@@ -58,6 +58,73 @@ export function TasksPage() {
     false,
   )
 
+  // Schedule-aware bucketing for the goals sidebar. For each linked goal:
+  //   activeGoalIdsThisWeek: a block is happening RIGHT NOW
+  //   upcomingTodayIds: a block starts later today (and none active now)
+  //   pastTodayIds: had at least one block today, none upcoming, none now
+  //   goalNextBlockMinutes: minutes until next occurrence (rolling 7-day);
+  //     used to sort within Upcoming Today + Later This Week buckets.
+  const {
+    activeGoalIdsThisWeek,
+    upcomingTodayIds,
+    pastTodayIds,
+    goalNextBlockMinutes,
+  } = useMemo(() => {
+    const active = new Set<string>()
+    const upcomingToday = new Set<string>()
+    const hadToday = new Set<string>()
+    const nextMins = new Map<string, number>()
+    const now = new Date()
+    const todayDow = now.getDay()
+    const nowMinutes = now.getHours() * 60 + now.getMinutes()
+    const parseHM = (s: string | null | undefined): number | null => {
+      if (!s) return null
+      const [h, m] = s.split(':').map(Number)
+      if (Number.isNaN(h) || Number.isNaN(m)) return null
+      return h * 60 + m
+    }
+    ;(scheduleBlocks ?? []).forEach(
+      (b: {
+        goalId?: string | null
+        dayOfWeek?: number | null
+        startTime?: string | null
+        endTime?: string | null
+      }) => {
+        if (!b.goalId || typeof b.dayOfWeek !== 'number') return
+        const start = parseHM(b.startTime)
+        const end = parseHM(b.endTime)
+        if (start == null || end == null) return
+        if (b.dayOfWeek === todayDow) {
+          hadToday.add(b.goalId)
+          if (nowMinutes >= start && nowMinutes < end) {
+            active.add(b.goalId)
+            nextMins.set(b.goalId, 0)
+            return
+          }
+          if (start > nowMinutes) {
+            upcomingToday.add(b.goalId)
+          }
+        }
+        let daysUntil = (b.dayOfWeek - todayDow + 7) % 7
+        let blockNow = daysUntil * 1440 + start - nowMinutes
+        if (blockNow < 0) blockNow += 7 * 1440
+        const prev = nextMins.get(b.goalId)
+        if (prev === undefined || blockNow < prev) nextMins.set(b.goalId, blockNow)
+      },
+    )
+    // Past today = had a block today, but no more upcoming today and not active.
+    const past = new Set<string>()
+    hadToday.forEach((id) => {
+      if (!active.has(id) && !upcomingToday.has(id)) past.add(id)
+    })
+    return {
+      activeGoalIdsThisWeek: active,
+      upcomingTodayIds: upcomingToday,
+      pastTodayIds: past,
+      goalNextBlockMinutes: nextMins,
+    }
+  }, [scheduleBlocks])
+
   // Auto-select first goal when goals change
   useEffect(() => {
     if (!isGoalIdInitialized || isLoading) return
@@ -241,6 +308,10 @@ export function TasksPage() {
           isLoading={isLoading}
           isCollapsed={goalsSidebarCollapsed}
           onToggleCollapse={() => setIsGoalsSidebarCollapsed((prev) => !prev)}
+          activeGoalIds={activeGoalIdsThisWeek}
+          upcomingTodayIds={upcomingTodayIds}
+          pastTodayIds={pastTodayIds}
+          goalNextBlockMinutes={goalNextBlockMinutes}
         />
       </div>
 

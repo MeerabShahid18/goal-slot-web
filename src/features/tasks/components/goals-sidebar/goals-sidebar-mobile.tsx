@@ -25,7 +25,7 @@ export function GoalsSidebarMobile({
   return (
     <>
       {/* Mobile Goal Selector - Inline below header */}
-      <div className="border-3 border-secondary bg-brutalist-bg md:hidden">
+      <div className="border border-zinc-200 bg-[#fafafa] md:hidden">
         {/* Current Goal Display - Click to expand */}
         <div
           onClick={() => setIsExpanded(!isExpanded)}
@@ -36,7 +36,7 @@ export function GoalsSidebarMobile({
               setIsExpanded(!isExpanded)
             }
           }}
-          className="flex w-full cursor-pointer items-center justify-between gap-1 border-b-3 border-secondary bg-white p-1 transition-all hover:bg-gray-50"
+          className="flex w-full cursor-pointer items-center justify-between gap-1 border-b border-zinc-200 bg-white p-1 transition-all hover:bg-gray-50"
         >
           <div className="flex min-w-0 flex-1 items-center gap-3">
             {isWithoutGoals ? (
@@ -58,7 +58,7 @@ export function GoalsSidebarMobile({
           </div>
           <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
             <Select value={selectedStatus} onValueChange={onSelectStatus}>
-              <SelectTrigger className="h-8 w-24 border-3 border-secondary bg-white text-[10px] font-bold uppercase shadow-brutal-sm">
+              <SelectTrigger className="h-8 w-24 border border-zinc-200 bg-white text-[10px] font-bold uppercase shadow-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -79,7 +79,7 @@ export function GoalsSidebarMobile({
 
         {/* Expanded Goals List */}
         {isExpanded && (
-          <div className="max-h-[60vh] overflow-y-auto border-b-3 border-secondary bg-brutalist-bg">
+          <div className="max-h-[60vh] overflow-y-auto border-b border-zinc-200 bg-[#fafafa]">
             {isLoading ? (
               <div className="flex min-h-[150px] items-center justify-center">
                 <GoalSlotSpinner size="sm" />
@@ -94,7 +94,7 @@ export function GoalsSidebarMobile({
                   }}
                   className={cn(
                     'w-full flex items-center gap-3 px-4 py-3 text-left font-bold uppercase text-xs border-b-2 border-secondary/20 transition-all',
-                    selectedGoalId === WITHOUT_GOALS_ID ? 'bg-primary text-secondary' : 'bg-white hover:bg-gray-50',
+                    selectedGoalId === WITHOUT_GOALS_ID ? 'bg-primary text-zinc-900' : 'bg-white hover:bg-gray-50',
                   )}
                 >
                   <span className="inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full bg-gray-400" />
@@ -115,7 +115,7 @@ export function GoalsSidebarMobile({
                       }}
                       className={cn(
                         'w-full flex items-center gap-3 px-4 py-3 text-left font-bold uppercase text-xs border-b-2 border-secondary/20 transition-all',
-                        selectedGoalId === goal.id ? 'bg-primary text-secondary' : 'bg-white hover:bg-gray-50',
+                        selectedGoalId === goal.id ? 'bg-primary text-zinc-900' : 'bg-white hover:bg-gray-50',
                       )}
                     >
                       <span
@@ -133,7 +133,7 @@ export function GoalsSidebarMobile({
                     setShowModal(true)
                     setIsExpanded(false)
                   }}
-                  className="flex w-full items-center justify-center gap-2 border-t-3 border-secondary bg-primary px-4 py-3 text-sm font-bold uppercase transition-all hover:bg-white"
+                  className="flex w-full items-center justify-center gap-2 border-t border-zinc-200 bg-primary px-4 py-3 text-sm font-bold uppercase transition-all hover:bg-white"
                 >
                   <Plus className="h-4 w-4" />
                   <span>New Goal</span>

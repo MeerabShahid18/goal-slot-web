@@ -24,3 +24,50 @@ export function findScheduleBlockForDateTime(
     }) || null
   )
 }
+
+export interface UpcomingScheduleBlock {
+  block: ScheduleBlock
+  startsAt: Date
+}
+
+/**
+ * Walk forward from `date` and collect the next `count` upcoming blocks
+ * across up to 7 days. Used by the FocusNowBar to show a small queue of
+ * what's coming up — current behaviour returns just the immediate next
+ * via findNextScheduleBlock (kept as a thin wrapper for callers that
+ * only want one).
+ */
+export function findUpcomingScheduleBlocks(
+  weekSchedule: WeekSchedule | undefined,
+  date: Date,
+  count: number,
+): UpcomingScheduleBlock[] {
+  if (!weekSchedule || count <= 0) return []
+  const minutes = date.getHours() * 60 + date.getMinutes()
+  const out: UpcomingScheduleBlock[] = []
+
+  for (let offset = 0; offset < 7 && out.length < count; offset++) {
+    const day = (date.getDay() + offset) % 7
+    const blocks = (weekSchedule[day] || []).slice().sort((a, b) => {
+      return timeToMinutes(a.startTime) - timeToMinutes(b.startTime)
+    })
+    for (const block of blocks) {
+      const blockStart = timeToMinutes(block.startTime)
+      if (offset === 0 && blockStart <= minutes) continue
+      const startsAt = new Date(date)
+      startsAt.setDate(startsAt.getDate() + offset)
+      const [h, m] = block.startTime.split(':').map(Number)
+      startsAt.setHours(h, m, 0, 0)
+      out.push({ block, startsAt })
+      if (out.length >= count) break
+    }
+  }
+  return out
+}
+
+export function findNextScheduleBlock(
+  weekSchedule: WeekSchedule | undefined,
+  date: Date,
+): UpcomingScheduleBlock | null {
+  return findUpcomingScheduleBlocks(weekSchedule, date, 1)[0] ?? null
+}
