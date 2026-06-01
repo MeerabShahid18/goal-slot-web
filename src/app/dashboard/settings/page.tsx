@@ -656,44 +656,91 @@ function SecuritySettings() {
 
 // Data Settings
 function DataSettings() {
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [confirmText, setConfirmText] = useState('')
 
   const handleDeleteAccount = async () => {
-    if (!confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
-      return
-    }
-    if (!confirm('This will permanently delete all your data. Type DELETE to confirm.')) {
-      return
-    }
-
-    setIsDeleting(true)
-    try {
-      await usersApi.deleteAccount()
-      toast.success('Account deleted')
-      window.location.href = '/'
-    } catch (error) {
-      toast.error('Failed to delete account')
-    } finally {
-      setIsDeleting(false)
-    }
+  if (confirmText !== 'DELETE') {
+    toast.error('Type DELETE to confirm')
+    return
   }
 
+  setIsDeleting(true)
+
+  try {
+    const res = await usersApi.deleteAccount()
+    console.log('delete response:', res)
+    if (!res || res.status !== 200) {
+      throw new Error('Delete failed')
+    }
+    toast.success('Account deleted successfully')
+
+    // clear storage (VERY IMPORTANT)
+    localStorage.removeItem('accessToken')
+    localStorage.removeItem('refreshToken')
+    window.location.href = '/login'
+  } catch (error) {
+    console.log('DELETE ERROR:', error)
+    toast.error('Account deletion failed')
+  } finally {
+    setIsDeleting(false)
+  }
+}
+
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-      <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm border-red-500">
-        <h2 className="mb-4 text-xl font-bold uppercase text-red-600">Danger Zone</h2>
-        <p className="mb-4 font-mono text-gray-600">
-          Once you delete your account, there is no going back. Please be certain.
-        </p>
-        <button
-          onClick={handleDeleteAccount}
-          disabled={isDeleting}
-          className="inline-flex items-center gap-2 rounded-lg bg-rose-500 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-rose-600 disabled:opacity-50"
-        >
-          <Trash2 className="h-5 w-5" />
-          {isDeleting ? 'Deleting...' : 'Delete Account'}
-        </button>
-      </div>
-    </motion.div>
+    <>
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+        <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm border-red-500">
+          <h2 className="mb-4 text-xl font-bold uppercase text-red-600">Danger Zone</h2>
+          <p className="mb-4 font-mono text-gray-600">
+            Once you delete your account, there is no going back. Please be certain.
+          </p>
+          <button
+            onClick={() => setShowDeleteModal(true)}
+            disabled={isDeleting}
+            className="inline-flex items-center gap-2 rounded-lg bg-rose-500 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-rose-600 disabled:opacity-50"
+          >
+            Delete Account
+          </button>
+        </div>
+      </motion.div>
+
+      {showDeleteModal && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/50">
+          <div className="w-[400px] rounded-lg bg-white p-6">
+            <h2 className="text-lg font-bold text-red-600">
+              Delete Account
+            </h2>
+            <p className="mt-2 text-sm text-gray-600">
+              Type DELETE to permanently delete your account
+            </p>
+            <input
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder="Type DELETE"
+              className="mt-4 w-full rounded border p-2"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false)
+                  setConfirmText('')
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                disabled={confirmText !== 'DELETE' || isDeleting}
+                onClick={handleDeleteAccount}
+                className="bg-red-500 px-4 py-2 text-white disabled:opacity-50"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
