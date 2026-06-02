@@ -16,6 +16,15 @@ import { cn } from '@/lib/utils'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 import { PageHeader } from '@/components/ui/page-header'
 import { PageShell } from '@/components/ui/page-shell'
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog'
+import { Loading } from '@/components/ui/loading'
 
 const TABS = [
   { id: 'profile', label: 'Profile', icon: User },
@@ -235,7 +244,7 @@ function ProfileSettings() {
             <div className="mt-1 text-sm font-semibold text-zinc-900">
               {user?.userType === 'SSO' ? 'Single sign-on' : 'Email + password'}
             </div>
-            <div className="text-[11px] text-zinc-500 truncate">{user?.email || ''}</div>
+            <div className="truncate text-[11px] text-zinc-500">{user?.email || ''}</div>
           </div>
         </div>
 
@@ -248,7 +257,7 @@ function ProfileSettings() {
           <div>
             <label className="mb-2 block text-sm font-bold uppercase">Email Address</label>
             <div className="flex flex-col gap-4 sm:flex-row">
-              <input type="email" value={email} disabled className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm transition-colors placeholder:text-zinc-400 focus:border-[#f2cc0d] focus:outline-none focus:ring-1 focus:ring-[#f2cc0d] flex-1 opacity-75" />
+              <input type="email" value={email} disabled className="h-10 w-full flex-1 rounded-lg border border-zinc-200 bg-white px-3 text-sm opacity-75 transition-colors placeholder:text-zinc-400 focus:border-[#f2cc0d] focus:outline-none focus:ring-1 focus:ring-[#f2cc0d]" />
               <span className="border border-zinc-200 bg-gray-100 px-4 py-3 text-center font-mono text-sm sm:text-left">
                 {user?.userType === 'SSO' ? 'SSO' : 'Verified'}
               </span>
@@ -257,7 +266,7 @@ function ProfileSettings() {
           </div>
 
           <div className="pt-4">
-            <button onClick={handleSave} disabled={isLoading} className="inline-flex items-center justify-center gap-2 rounded-lg bg-zinc-900 text-white text-sm font-semibold px-4 py-2 transition-colors hover:bg-zinc-800 disabled:opacity-50">
+            <button onClick={handleSave} disabled={isLoading} className="inline-flex items-center justify-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:opacity-50">
               {isLoading ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
@@ -426,7 +435,7 @@ function BillingSettings() {
                 {!isCurrent && (
                   <a
                     href={`mailto:support@goalslot.com?subject=Upgrade%20to%20${plan.name}%20plan`}
-                    className="inline-flex h-9 items-center justify-center rounded-md border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 hover:border-zinc-300"
+                    className="inline-flex h-9 items-center justify-center rounded-md border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-50"
                   >
                     Email to switch to {plan.name}
                   </a>
@@ -534,7 +543,7 @@ function SecuritySettings() {
                     type={showCurrentPassword ? 'text' : 'password'}
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
-                    className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm transition-colors placeholder:text-zinc-400 focus:border-[#f2cc0d] focus:outline-none focus:ring-1 focus:ring-[#f2cc0d] pr-12"
+                    className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 pr-12 text-sm transition-colors placeholder:text-zinc-400 focus:border-[#f2cc0d] focus:outline-none focus:ring-1 focus:ring-[#f2cc0d]"
                     placeholder="Enter your current password"
                   />
                   <button
@@ -547,7 +556,7 @@ function SecuritySettings() {
                 </div>
               </div>
               <div className="flex gap-3 pt-2">
-                <button onClick={handleSendOTP} disabled={isLoading || !currentPassword} className="inline-flex items-center justify-center gap-2 rounded-lg bg-zinc-900 text-white text-sm font-semibold px-4 py-2 transition-colors hover:bg-zinc-800 disabled:opacity-50">
+                <button onClick={handleSendOTP} disabled={isLoading || !currentPassword} className="inline-flex items-center justify-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:opacity-50">
                   {isLoading ? 'Sending...' : 'Send Verification Code'}
                 </button>
               </div>
@@ -591,7 +600,7 @@ function SecuritySettings() {
                     type={showNewPassword ? 'text' : 'password'}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm transition-colors placeholder:text-zinc-400 focus:border-[#f2cc0d] focus:outline-none focus:ring-1 focus:ring-[#f2cc0d] pr-12"
+                    className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 pr-12 text-sm transition-colors placeholder:text-zinc-400 focus:border-[#f2cc0d] focus:outline-none focus:ring-1 focus:ring-[#f2cc0d]"
                     placeholder="Enter your new password"
                   />
                   <button
@@ -612,7 +621,7 @@ function SecuritySettings() {
                     type={showConfirmPassword ? 'text' : 'password'}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm transition-colors placeholder:text-zinc-400 focus:border-[#f2cc0d] focus:outline-none focus:ring-1 focus:ring-[#f2cc0d] pr-12"
+                    className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 pr-12 text-sm transition-colors placeholder:text-zinc-400 focus:border-[#f2cc0d] focus:outline-none focus:ring-1 focus:ring-[#f2cc0d]"
                     placeholder="Confirm your new password"
                   />
                   <button
@@ -629,11 +638,11 @@ function SecuritySettings() {
                 <button
                   onClick={handleChangePassword}
                   disabled={isLoading || !otp || !newPassword || !confirmPassword}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-zinc-900 text-white text-sm font-semibold px-4 py-2 transition-colors hover:bg-zinc-800 disabled:opacity-50"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:opacity-50"
                 >
                   {isLoading ? 'Changing...' : 'Change Password'}
                 </button>
-                <button onClick={handleCancel} disabled={isLoading} className="inline-flex items-center justify-center gap-2 rounded-lg bg-zinc-900 text-white text-sm font-semibold px-4 py-2 transition-colors hover:bg-zinc-800 disabled:opacity-50">
+                <button onClick={handleCancel} disabled={isLoading} className="inline-flex items-center justify-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:opacity-50">
                   Cancel
                 </button>
               </div>
@@ -656,91 +665,99 @@ function SecuritySettings() {
 
 // Data Settings
 function DataSettings() {
-  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [isOpen, setIsOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [confirmText, setConfirmText] = useState('')
 
-  const handleDeleteAccount = async () => {
-  if (confirmText !== 'DELETE') {
-    toast.error('Type DELETE to confirm')
-    return
-  }
-
-  setIsDeleting(true)
-
-  try {
-    const res = await usersApi.deleteAccount()
-    console.log('delete response:', res)
-    if (!res || res.status !== 200) {
-      throw new Error('Delete failed')
+  const handleOpenChange = (open: boolean) => {
+    setIsOpen(open)
+    if (!open) {
+      setConfirmText('')
     }
-    toast.success('Account deleted successfully')
-
-    // clear storage (VERY IMPORTANT)
-    localStorage.removeItem('accessToken')
-    localStorage.removeItem('refreshToken')
-    window.location.href = '/login'
-  } catch (error) {
-    console.log('DELETE ERROR:', error)
-    toast.error('Account deletion failed')
-  } finally {
-    setIsDeleting(false)
   }
-}
+
+  const handleDeleteAccount = async () => {
+    setIsDeleting(true)
+    try {
+      await usersApi.deleteAccount()
+      toast.success('Account deleted')
+      window.location.href = '/'
+    } catch (error) {
+      toast.error('Failed to delete account')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const canConfirmDelete = confirmText === 'DELETE'
 
   return (
-    <>
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-        <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm border-red-500">
-          <h2 className="mb-4 text-xl font-bold uppercase text-red-600">Danger Zone</h2>
-          <p className="mb-4 font-mono text-gray-600">
-            Once you delete your account, there is no going back. Please be certain.
-          </p>
-          <button
-            onClick={() => setShowDeleteModal(true)}
-            disabled={isDeleting}
-            className="inline-flex items-center gap-2 rounded-lg bg-rose-500 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-rose-600 disabled:opacity-50"
-          >
-            Delete Account
-          </button>
-        </div>
-      </motion.div>
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+      <div className="rounded-xl border border-red-500 bg-white p-6 shadow-sm">
+        <h2 className="mb-4 flex items-center gap-2 text-xl font-bold uppercase text-red-600">
+          <Trash2 className="h-5 w-5" />
+          Danger Zone
+        </h2>
+        <p className="mb-4 font-mono text-gray-600">
+          Once you delete your account, there is no going back. Please be certain.
+        </p>
+        <button
+          onClick={() => setIsOpen(true)}
+          disabled={isDeleting}
+          className="inline-flex items-center gap-2 rounded-lg bg-rose-500 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-rose-600 disabled:opacity-50"
+        >
+          <Trash2 className="h-5 w-5" />
+          {isDeleting ? 'Deleting...' : 'Delete Account'}
+        </button>
+      </div>
 
-      {showDeleteModal && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/50">
-          <div className="w-[400px] rounded-lg bg-white p-6">
-            <h2 className="text-lg font-bold text-red-600">
-              Delete Account
-            </h2>
-            <p className="mt-2 text-sm text-gray-600">
-              Type DELETE to permanently delete your account
+      <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-red-600">Delete Account</DialogTitle>
+            <DialogDescription>
+              This action cannot be undone. All your data will be permanently deleted.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-gray-600">
+              To confirm, type <span className="font-mono font-semibold">DELETE</span> below:
             </p>
             <input
+              type="text"
               value={confirmText}
               onChange={(e) => setConfirmText(e.target.value)}
-              placeholder="Type DELETE"
-              className="mt-4 w-full rounded border p-2"
+              placeholder="Type DELETE to confirm"
+              className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm transition-colors placeholder:text-zinc-400 focus:border-[#f2cc0d] focus:outline-none focus:ring-1 focus:ring-[#f2cc0d]"
             />
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                onClick={() => {
-                  setShowDeleteModal(false)
-                  setConfirmText('')
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                disabled={confirmText !== 'DELETE' || isDeleting}
-                onClick={handleDeleteAccount}
-                className="bg-red-500 px-4 py-2 text-white disabled:opacity-50"
-              >
-                Confirm
-              </button>
-            </div>
           </div>
-        </div>
-      )}
-    </>
+
+          <DialogFooter>
+            <button
+              onClick={() => handleOpenChange(false)}
+              disabled={isDeleting}
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleDeleteAccount}
+              disabled={!canConfirmDelete || isDeleting}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-rose-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-rose-600 disabled:opacity-50"
+            >
+              {isDeleting ? (
+                <>
+                  <Loading className="h-4 w-4" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete Account'
+              )}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </motion.div>
   )
 }
