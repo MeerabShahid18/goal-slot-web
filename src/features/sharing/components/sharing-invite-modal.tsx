@@ -6,7 +6,7 @@ import { AlertCircle, Copy, Globe, Link2, Mail } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 
 import { cn } from '@/lib/utils'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 interface SharingInviteModalProps {
   isOpen: boolean
@@ -92,6 +92,9 @@ export function SharingInviteModal({ isOpen, onClose, onSuccess }: SharingInvite
       <DialogContent className=" max-w-md">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold uppercase sm:text-2xl">Share Your Data</DialogTitle>
+          <DialogDescription>
+            Choose how you want to share your focus reports. You can invite specific people via email or create a public link that anyone can access.
+          </DialogDescription>
         </DialogHeader>
 
         {/* Mode Selector - Only show if no result yet */}
@@ -143,7 +146,7 @@ export function SharingInviteModal({ isOpen, onClose, onSuccess }: SharingInvite
 
             <div className="border border-zinc-200 bg-gray-50 p-3 sm:p-4">
               <div className="flex items-start gap-2">
-                <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-accent-orange sm:h-5 sm:w-5" />
+                <AlertCircle className="text-accent-orange mt-0.5 h-4 w-4 flex-shrink-0 sm:h-5 sm:w-5" />
                 <p className="font-mono text-xs text-gray-600 sm:text-sm">
                   The invited user will receive an email notification. They must <strong>create an account</strong>{' '}
                   (or log in) and accept the invite to gain access to your data.
@@ -195,7 +198,7 @@ export function SharingInviteModal({ isOpen, onClose, onSuccess }: SharingInvite
                 <div className="flex items-start gap-2">
                   <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-green-600 sm:h-5 sm:w-5" />
                   <div className="flex-1">
-                    <p className="text-sm font-bold text-green-800 sm:text-base">Invitation sent successfully!</p>
+                    <p className="text-sm font-bold text-green-800 sm:text-base">✓ Invitation sent successfully!</p>
                     <p className="font-mono text-xs text-green-700 sm:text-sm">
                       {email} will receive an email with the invitation. They must create an account or log in to accept.
                     </p>
@@ -209,9 +212,12 @@ export function SharingInviteModal({ isOpen, onClose, onSuccess }: SharingInvite
                 <div className="flex items-start gap-2">
                   <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-600 sm:h-5 sm:w-5" />
                   <div className="flex-1">
-                    <p className="text-sm font-bold text-red-800 sm:text-base">Email failed to send</p>
-                    <p className="font-mono text-xs text-red-700 sm:text-sm">
-                      Please share the invite link manually with {email}
+                    <p className="text-sm font-bold text-red-800 sm:text-base">⚠️ Email could not be sent</p>
+                    <p className="mb-2 font-mono text-xs text-red-700 sm:text-sm">
+                      The email to {email} failed to send, but your invitation link is ready to share manually.
+                    </p>
+                    <p className="font-mono text-xs text-red-600">
+                      Copy the invite link below and send it to them through another method (chat, message, etc.)
                     </p>
                   </div>
                 </div>
@@ -226,18 +232,19 @@ export function SharingInviteModal({ isOpen, onClose, onSuccess }: SharingInvite
                     type="text"
                     readOnly
                     value={`${typeof window !== 'undefined' ? window.location.origin : ''}${inviteResult.inviteLink}`}
-                    className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm transition-colors placeholder:text-zinc-400 focus:border-[#f2cc0d] focus:outline-none focus:ring-1 focus:ring-[#f2cc0d] flex-1 font-mono text-xs"
+                    className="h-10 w-full flex-1 rounded-lg border border-zinc-200 bg-white px-3 font-mono text-xs transition-colors placeholder:text-zinc-400 focus:border-[#f2cc0d] focus:outline-none focus:ring-1 focus:ring-[#f2cc0d]"
+                    onClick={(e) => e.currentTarget.select()}
                   />
                   <button
                     type="button"
                     onClick={copyInviteLink}
-                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white text-zinc-900 text-sm font-semibold px-4 py-2 transition-colors hover:bg-zinc-50 disabled:opacity-50 whitespace-nowrap px-3 text-xs sm:px-4 sm:text-sm"
+                    className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-zinc-200 bg-white px-4 py-2 font-semibold text-zinc-900 transition-colors hover:bg-zinc-50 disabled:opacity-50 text-xs sm:text-sm"
                   >
                     <Copy className="h-4 w-4" />
                   </button>
                 </div>
                 <p className="mt-2 font-mono text-[10px] text-gray-600 sm:text-xs">
-                  Share this link with the recipient. They need to create an account to accept.
+                  Share this link with {email}. They need to create an account to accept.
                 </p>
               </div>
             )}
@@ -267,12 +274,12 @@ export function SharingInviteModal({ isOpen, onClose, onSuccess }: SharingInvite
                   type="text"
                   readOnly
                   value={`${typeof window !== 'undefined' ? window.location.origin : ''}${publicLinkResult.publicLink}`}
-                  className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm transition-colors placeholder:text-zinc-400 focus:border-[#f2cc0d] focus:outline-none focus:ring-1 focus:ring-[#f2cc0d] flex-1 font-mono text-xs"
+                  className="h-10 w-full flex-1 rounded-lg border border-zinc-200 bg-white px-3 font-mono text-xs transition-colors placeholder:text-zinc-400 focus:border-[#f2cc0d] focus:outline-none focus:ring-1 focus:ring-[#f2cc0d]"
                 />
                 <button
                   type="button"
                   onClick={copyPublicLink}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white text-zinc-900 text-sm font-semibold px-4 py-2 transition-colors hover:bg-zinc-50 disabled:opacity-50 whitespace-nowrap px-3 text-xs sm:px-4 sm:text-sm"
+                  className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-zinc-200 bg-white px-4 py-2 font-semibold text-zinc-900 transition-colors hover:bg-zinc-50 disabled:opacity-50 text-xs sm:text-sm"
                 >
                   <Copy className="h-4 w-4" />
                 </button>
@@ -287,14 +294,14 @@ export function SharingInviteModal({ isOpen, onClose, onSuccess }: SharingInvite
         <DialogFooter className="flex-row gap-2 pt-3 sm:gap-4 sm:pt-4">
           {!hasResult && shareMode === 'email' && (
             <>
-              <button type="button" onClick={onClose} className="inline-flex items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white text-zinc-900 text-sm font-semibold px-4 py-2 transition-colors hover:bg-zinc-50 disabled:opacity-50 flex-1 text-xs sm:text-sm">
+              <button type="button" onClick={onClose} className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-xs font-semibold text-zinc-900 transition-colors hover:bg-zinc-50 disabled:opacity-50 sm:text-sm">
                 Cancel
               </button>
               <button
                 type="submit"
                 form="invite-form"
                 disabled={shareMutation.isPending}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-rose-500 text-white text-sm font-semibold px-4 py-2 transition-colors hover:bg-rose-600 disabled:opacity-50 flex-1 text-xs sm:text-sm"
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-rose-500 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-rose-600 disabled:opacity-50 sm:text-sm"
               >
                 {shareMutation.isPending ? 'Sending...' : 'Send Invite'}
               </button>
@@ -302,14 +309,14 @@ export function SharingInviteModal({ isOpen, onClose, onSuccess }: SharingInvite
           )}
           {!hasResult && shareMode === 'public-link' && (
             <>
-              <button type="button" onClick={onClose} className="inline-flex items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white text-zinc-900 text-sm font-semibold px-4 py-2 transition-colors hover:bg-zinc-50 disabled:opacity-50 flex-1 text-xs sm:text-sm">
+              <button type="button" onClick={onClose} className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-xs font-semibold text-zinc-900 transition-colors hover:bg-zinc-50 disabled:opacity-50 sm:text-sm">
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleCreatePublicLink}
                 disabled={createPublicLinkMutation.isPending}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-rose-500 text-white text-sm font-semibold px-4 py-2 transition-colors hover:bg-rose-600 disabled:opacity-50 flex-1 text-xs sm:text-sm"
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-rose-500 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-rose-600 disabled:opacity-50 sm:text-sm"
               >
                 {createPublicLinkMutation.isPending ? 'Creating...' : 'Create Link'}
               </button>
@@ -322,7 +329,7 @@ export function SharingInviteModal({ isOpen, onClose, onSuccess }: SharingInvite
                 onSuccess()
                 onClose()
               }}
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-rose-500 text-white text-sm font-semibold px-4 py-2 transition-colors hover:bg-rose-600 disabled:opacity-50 flex-1 text-xs sm:text-sm"
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-rose-500 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-rose-600 disabled:opacity-50 sm:text-sm"
             >
               Done
             </button>

@@ -111,6 +111,8 @@ function PublicShareViewContent() {
     },
     onSuccess: () => {
       toast.success('Invitation accepted successfully!')
+      // Clear pending invitation from localStorage if it exists
+      localStorage.removeItem('pendingInvitation')
       // Redirect to dashboard/sharing page
       setTimeout(() => {
         router.push('/dashboard/sharing')
@@ -121,9 +123,9 @@ function PublicShareViewContent() {
       if (message.includes('already been accepted')) {
         toast.error('This invitation has already been accepted')
       } else if (message.includes('not for you')) {
-        toast.error('This invitation is not for your email address')
+        toast.error(`This invitation is not for you. Please log in with the correct email account.`)
       } else if (message.includes('expired')) {
-        toast.error('This invitation has expired')
+        toast.error('This invitation has expired. Please ask the owner to send a new one.')
       } else {
         toast.error(message)
       }
@@ -208,7 +210,7 @@ function PublicShareViewContent() {
   if (!token) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50 p-2 sm:p-6">
-        <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm max-w-md text-center">
+        <div className="max-w-md rounded-xl border border-zinc-200 bg-white p-4 text-center shadow-sm">
           <Lock className="mx-auto mb-4 h-16 w-16 text-red-500" />
           <h1 className="mb-2 text-2xl font-bold uppercase">Invalid Link</h1>
           <p className="font-mono text-gray-600">This share link is invalid or missing a token.</p>
@@ -228,13 +230,13 @@ function PublicShareViewContent() {
   if (shareInfoQuery.isError) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50 p-2 sm:p-6">
-        <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm max-w-md text-center">
+        <div className="max-w-md rounded-xl border border-zinc-200 bg-white p-4 text-center shadow-sm">
           <Lock className="mx-auto mb-4 h-16 w-16 text-red-500" />
           <h1 className="mb-2 text-2xl font-bold uppercase">Link Expired or Invalid</h1>
           <p className="font-mono text-gray-600">
             This share link has expired or is no longer valid. Please ask the owner to send you a new invitation.
           </p>
-          <Link href="/" className="inline-flex items-center justify-center gap-2 rounded-lg bg-zinc-900 text-white text-sm font-semibold px-4 py-2 transition-colors hover:bg-zinc-800 disabled:opacity-50 mt-6 inline-block">
+          <Link href="/" className="mt-6 inline-flex items-center justify-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:opacity-50">
             Go to Homepage
           </Link>
         </div>
@@ -275,7 +277,7 @@ function PublicShareViewContent() {
               {!isAuthenticated && (
                 <Link
                   href={`/signup?redirect=${encodeURIComponent(`/share/accept?token=${token}`)}`}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-zinc-900 text-white text-sm font-semibold px-4 py-2 transition-colors hover:bg-zinc-800 disabled:opacity-50 flex items-center gap-2"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:opacity-50"
                 >
                   <ExternalLink className="h-4 w-4" />
                   Sign Up to Track Your Own Time
@@ -308,7 +310,7 @@ function PublicShareViewContent() {
               <>
                 {/* Email Matches */}
                 {userQuery.data.email === shareInfoQuery.data.inviteEmail && (
-                  <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm bg-blue-50">
+                  <div className="rounded-xl border border-zinc-200 bg-blue-50 p-4 shadow-sm">
                     <div className="mb-4">
                       <h3 className="mb-2 text-lg font-bold">Accept Invitation</h3>
                       <p className="font-mono text-sm text-gray-700">
@@ -319,7 +321,7 @@ function PublicShareViewContent() {
                     <button
                       onClick={() => acceptInviteMutation.mutate()}
                       disabled={acceptInviteMutation.isPending}
-                      className="inline-flex items-center justify-center gap-2 rounded-lg bg-zinc-900 text-white text-sm font-semibold px-4 py-2 transition-colors hover:bg-zinc-800 disabled:opacity-50 w-full sm:w-auto"
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:opacity-50 sm:w-auto"
                     >
                       {acceptInviteMutation.isPending ? 'Accepting...' : 'Accept Invitation'}
                     </button>
@@ -330,12 +332,33 @@ function PublicShareViewContent() {
                 {userQuery.data.email !== shareInfoQuery.data.inviteEmail && (
                   <div className="flex items-start gap-3 border-2 border-red-500 bg-red-50 p-4">
                     <Lock className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600" />
-                    <div className="font-mono text-sm">
-                      <strong className="text-red-800">Wrong Account:</strong>{' '}
-                      <span className="text-red-700">
-                        This invitation was sent to {shareInfoQuery.data.inviteEmail}, but you&apos;re logged in as{' '}
-                        {userQuery.data.email}. Please log in with the correct account to accept this invitation.
-                      </span>
+                    <div className="flex-1">
+                      <div className="font-mono text-sm">
+                        <strong className="mb-2 block text-base text-red-800">❌ Wrong Account</strong>
+                        <span className="mb-3 block text-red-700">
+                          This invitation was sent to <strong>{shareInfoQuery.data.inviteEmail}</strong>, but you&apos;re logged in as <strong>{userQuery.data.email}</strong>.
+                        </span>
+                        <span className="mb-4 block text-xs text-red-600">
+                          To accept this invitation, you need to log in or sign up with the email address that received the invitation.
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          localStorage.setItem(
+                            'pendingInvitation',
+                            JSON.stringify({
+                              token,
+                              email: shareInfoQuery.data.inviteEmail,
+                              ownerName: owner?.name,
+                              expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+                            })
+                          )
+                          window.location.href = '/logout'
+                        }}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700"
+                      >
+                        Log in with {shareInfoQuery.data.inviteEmail}
+                      </button>
                     </div>
                   </div>
                 )}
@@ -352,7 +375,7 @@ function PublicShareViewContent() {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm bg-amber-100 text-white"
+              className="rounded-xl border border-zinc-200 bg-amber-100 p-4 text-white shadow-sm"
             >
               <div className="mb-4">
                 <h3 className="mb-2 flex items-center gap-2 text-lg font-bold uppercase">
@@ -367,13 +390,13 @@ function PublicShareViewContent() {
               <div className="flex flex-wrap gap-3">
                 <Link
                   href={`/signup?redirect=${encodeURIComponent(`/share/accept?token=${token}`)}`}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-zinc-900 text-white text-sm font-semibold px-4 py-2 transition-colors hover:bg-zinc-800 disabled:opacity-50 flex-1 sm:flex-none"
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:opacity-50 sm:flex-none"
                 >
                   Create Account
                 </Link>
                 <Link
                   href={`/login?redirect=${encodeURIComponent(`/share/accept?token=${token}`)}`}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white text-zinc-900 text-sm font-semibold px-4 py-2 transition-colors hover:bg-zinc-50 disabled:opacity-50 flex-1 sm:flex-none"
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-50 disabled:opacity-50 sm:flex-none"
                 >
                   Log In
                 </Link>
@@ -410,7 +433,7 @@ function PublicShareViewContent() {
             animate={{ opacity: 1, y: 0 }}
             className="grid grid-cols-2 gap-4 md:grid-cols-4"
           >
-            <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm p-4">
+            <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
               <div className="flex items-center gap-2 text-gray-600">
                 <Clock className="h-4 w-4" />
                 <span className="font-mono text-xs uppercase">Total Time</span>
@@ -418,7 +441,7 @@ function PublicShareViewContent() {
               <div className="mt-2 text-2xl font-bold">{stats.totalFormatted}</div>
             </div>
 
-            <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm p-4">
+            <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
               <div className="flex items-center gap-2 text-gray-600">
                 <Calendar className="h-4 w-4" />
                 <span className="font-mono text-xs uppercase">Days Active</span>
@@ -426,7 +449,7 @@ function PublicShareViewContent() {
               <div className="mt-2 text-2xl font-bold">{stats.daysActive}</div>
             </div>
 
-            <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm p-4">
+            <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
               <div className="flex items-center gap-2 text-gray-600">
                 <TrendingUp className="h-4 w-4" />
                 <span className="font-mono text-xs uppercase">Avg/Day</span>
@@ -434,7 +457,7 @@ function PublicShareViewContent() {
               <div className="mt-2 text-2xl font-bold">{stats.avgFormatted}</div>
             </div>
 
-            <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm p-4">
+            <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
               <div className="flex items-center gap-2 text-gray-600">
                 <BarChart3 className="h-4 w-4" />
                 <span className="font-mono text-xs uppercase">Entries</span>
@@ -571,7 +594,7 @@ function PublicShareViewContent() {
 
         {/* No entries message - Only show if data is viewable */}
         {canViewData && !entriesQuery.isLoading && entries.length === 0 && (
-          <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm py-12 text-center">
+          <div className="rounded-xl border border-zinc-200 bg-white p-4 py-12 text-center shadow-sm">
             <Clock className="mx-auto mb-4 h-12 w-12 opacity-30" />
             <h3 className="mb-2 font-bold uppercase">No focus time logged</h3>
             <p className="font-mono text-sm text-gray-600">No focus time has been logged for this period.</p>
@@ -583,13 +606,13 @@ function PublicShareViewContent() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
-          className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm bg-primary text-center"
+          className="rounded-xl border border-zinc-200 bg-primary bg-white p-4 text-center shadow-sm"
         >
           <h2 className="mb-2 text-xl font-bold uppercase">Want to track your own focus time?</h2>
           <p className="mb-4 font-mono text-sm">Join GoalSlot and start building better productivity habits today!</p>
           <Link
             href={`/signup?redirect=${encodeURIComponent(`/share/accept?token=${token}`)}`}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-zinc-900 text-white text-sm font-semibold px-4 py-2 transition-colors hover:bg-zinc-800 disabled:opacity-50 inline-flex items-center gap-2"
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:opacity-50"
           >
             <User className="h-4 w-4" />
             Create Free Account
