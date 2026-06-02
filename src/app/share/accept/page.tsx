@@ -376,7 +376,7 @@ function PublicShareViewContent() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               className="rounded-xl border border-zinc-200 bg-amber-100 p-4 text-white shadow-sm"
-            >
+              >
               <div className="mb-4">
                 <h3 className="mb-2 flex items-center gap-2 text-lg font-bold uppercase">
                   <Mail className="h-5 w-5" />

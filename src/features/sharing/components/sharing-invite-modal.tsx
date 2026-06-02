@@ -273,7 +273,6 @@ export function SharingInviteModal({ isOpen, onClose, onSuccess }: SharingInvite
                 <input
                   type="text"
                   readOnly
-                  value={`${typeof window !== 'undefined' ? window.location.origin : ''}${publicLinkResult.publicLink}`}
                   className="h-10 w-full flex-1 rounded-lg border border-zinc-200 bg-white px-3 font-mono text-xs transition-colors placeholder:text-zinc-400 focus:border-[#f2cc0d] focus:outline-none focus:ring-1 focus:ring-[#f2cc0d]"
                 />
                 <button

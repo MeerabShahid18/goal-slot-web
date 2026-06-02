@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import Color from '@tiptap/extension-color'
@@ -90,6 +90,10 @@ export function TiptapEditor({
 }: TiptapEditorProps) {
   const [isCopied, setIsCopied] = useState(false)
   const [isInTable, setIsInTable] = useState(false)
+  // editorProps.handleKeyDown runs inside the useEditor config closure,
+  // before the `editor` const exists. A ref kept in sync via useEffect
+  // below gives the handler a stable accessor.
+  const editorRef = useRef<ReturnType<typeof useEditor>>(null)
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -216,6 +220,43 @@ export function TiptapEditor({
         }
         return false
       },
+      // Tab + Shift-Tab. Scoped to the editor via editorProps (not a
+      // document-level listener) so it doesn't steal Tab from inputs
+      // elsewhere on the page (share dialog, settings, etc).
+      //
+      // We always preventDefault on Tab while the editor is focused —
+      // otherwise the browser shifts focus to the next focusable
+      // element and the user's selection is lost. Inside a list we
+      // sink/lift; outside a list we just swallow the key (no auto
+      // tab-to-spaces, matching Notion/Obsidian behavior).
+      //
+      // sinkListItem / liftListItem operate on the entire selection,
+      // so multi-line selections that span several list items all
+      // indent/outdent together as expected.
+      handleKeyDown: (_view, event) => {
+        if (event.key !== 'Tab') return false
+        const ed = editorRef.current
+        if (!ed) return false
+
+        event.preventDefault()
+
+        const inTaskItem = ed.isActive('taskItem')
+        const inListItem = ed.isActive('listItem')
+
+        if (!inTaskItem && !inListItem) {
+          // Plain text / heading / quote selection — consume to keep
+          // focus, but don't insert anything.
+          return true
+        }
+
+        const itemType = inTaskItem ? 'taskItem' : 'listItem'
+        if (event.shiftKey) {
+          ed.chain().focus().liftListItem(itemType).run()
+        } else {
+          ed.chain().focus().sinkListItem(itemType).run()
+        }
+        return true
+      },
     },
     onUpdate: ({ editor }) => {
       onChange?.(editor.getHTML(), editor.getJSON())
@@ -224,6 +265,13 @@ export function TiptapEditor({
       setIsInTable(editor.isActive('table'))
     },
   })
+
+  // Keep editorRef in sync so editorProps.handleKeyDown (defined inside
+  // the useEditor config closure, where `editor` doesn't yet exist) has
+  // a stable accessor to the live editor.
+  useEffect(() => {
+    editorRef.current = editor ?? null
+  }, [editor])
 
   // Expose the editor instance to callers that need to run commands
   // (insertContent, focus, etc.) without re-mounting via key changes.
@@ -261,32 +309,12 @@ export function TiptapEditor({
         }
       }
 
-      // Tab handling for lists
-      if (e.key === 'Tab' && !e.shiftKey) {
-        if (editor.isActive('taskItem') || editor.isActive('listItem')) {
-          e.preventDefault()
-          editor
-            .chain()
-            .focus()
-            .sinkListItem(editor.isActive('taskItem') ? 'taskItem' : 'listItem')
-            .run()
-        }
-      }
-
-      // Shift+Tab for outdenting
-      if (e.key === 'Tab' && e.shiftKey) {
-        if (editor.isActive('taskItem') || editor.isActive('listItem')) {
-          e.preventDefault()
-          editor
-            .chain()
-            .focus()
-            .liftListItem(editor.isActive('taskItem') ? 'taskItem' : 'listItem')
-            .run()
-        }
-      }
     }
 
-    // Use capture phase to intercept before ProseMirror
+    // Use capture phase to intercept before ProseMirror.
+    // Note: Tab is handled separately via editorProps.handleKeyDown so
+    // it stays scoped to the editor and doesn't steal Tab from other
+    // inputs on the page.
     document.addEventListener('keydown', handleKeyDown, true)
     return () => document.removeEventListener('keydown', handleKeyDown, true)
   }, [editor])
