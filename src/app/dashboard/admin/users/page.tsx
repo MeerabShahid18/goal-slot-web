@@ -1,6 +1,5 @@
 'use client'
 
-/* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useState } from 'react'
 
 import { motion } from 'framer-motion'
@@ -28,6 +27,7 @@ import { toast } from 'react-hot-toast'
 
 import { usersApi } from '@/lib/api'
 import { GoalSlotSpinner } from '@/components/goalslot-logo'
+import { BulkInviteModal } from '@/components/bulk-invite-modal'
 
 import { useAuthStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
@@ -118,6 +118,7 @@ export default function AdminUsersPage() {
   const [modalType, setModalType] = useState<ModalType>(null)
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [selectedUsers, setSelectedUsers] = useState<string[]>([])
+  const [bulkInviteOpen, setBulkInviteOpen] = useState(false)
 
   // Create user form
   const [newUser, setNewUser] = useState<CreateUserData>({
@@ -146,14 +147,6 @@ export default function AdminUsersPage() {
     return () => clearTimeout(timer)
   }, [searchTerm])
 
-  useEffect(() => {
-    if (currentPage !== 1) {
-       setSelectedUsers([]);
-    }
-    loadUsers()
-    loadStats()
-  }, [currentPage, debouncedSearch])
-
   const loadUsers = async () => {
     setIsLoading(true)
     try {
@@ -180,6 +173,15 @@ export default function AdminUsersPage() {
       console.error('Failed to load stats', error)
     }
   }
+
+  useEffect(() => {
+    if (currentPage !== 1) {
+      setSelectedUsers([])
+    }
+    loadUsers()
+    loadStats()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, debouncedSearch])
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -414,10 +416,16 @@ export default function AdminUsersPage() {
         title="User Management"
         description="Manage users, roles, subscriptions, and access permissions"
         actions={
-          <Button onClick={() => openModal('create')} variant="brand">
-            <UserPlus className="h-4 w-4" />
-            Add Internal User
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button onClick={() => setBulkInviteOpen(true)} variant="secondary">
+              <Users className="h-4 w-4" />
+              Bulk Invite
+            </Button>
+            <Button onClick={() => openModal('create')} variant="brand">
+              <UserPlus className="h-4 w-4" />
+              Add Internal User
+            </Button>
+          </div>
         }
       />
 
@@ -1078,6 +1086,15 @@ export default function AdminUsersPage() {
           </DialogContent>
         )}
       </Dialog>
+
+      <BulkInviteModal
+        isOpen={bulkInviteOpen}
+        onClose={() => setBulkInviteOpen(false)}
+        onComplete={() => {
+          loadUsers()
+          loadStats()
+        }}
+      />
     </PageShell>
   )
 }

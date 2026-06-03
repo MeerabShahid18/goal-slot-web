@@ -437,7 +437,19 @@ export function CoachProposalCard({ block, sourceMessageId }: CoachProposalCardP
         queryClient.invalidateQueries({ queryKey: ['tasks'] }),
         queryClient.invalidateQueries({ queryKey: ['time-entries'] }),
         queryClient.invalidateQueries({ queryKey: ['timeEntries'] }),
+        queryClient.invalidateQueries({ queryKey: ['coach', 'insights'] }),
       ])
+
+      // Broadcast sync event to other open tabs
+      if (typeof window !== 'undefined' && typeof BroadcastChannel !== 'undefined') {
+        try {
+          const channel = new BroadcastChannel('goalslot-sync')
+          channel.postMessage({ type: 'COACH_PROPOSAL_APPLIED' })
+          channel.close()
+        } catch {
+          // Ignore broadcast errors
+        }
+      }
     } catch (err) {
       const m = err instanceof Error ? err.message : 'Could not apply proposal'
       toast.error(m)
