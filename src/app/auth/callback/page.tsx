@@ -26,10 +26,11 @@ export default function AuthCallbackPage() {
     ;(async () => {
       try {
         await loadUser()
+        router.replace('/dashboard')
       } catch (err) {
-        // ignore
+        toast.error('Sign-in failed, please try again')
+        router.replace('/login?error=oauth')
       }
-      router.replace('/dashboard')
     })()
   }, [params, router, setTokens, loadUser])
 
