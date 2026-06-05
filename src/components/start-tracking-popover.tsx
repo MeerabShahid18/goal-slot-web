@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { useTimerStore } from '@/lib/use-timer-store'
 import { Loader2, Play, Search, X, Plus } from 'lucide-react'
@@ -29,6 +29,8 @@ export function StartTrackingPopover({ open, onClose }: StartTrackingPopoverProp
   const [freeText, setFreeText] = useState('')
   const [selectedGoalId, setSelectedGoalId] = useState<string>(NO_GOAL)
   const [isCreating, setIsCreating] = useState(false)
+  const [highlightedIndex, setHighlightedIndex] = useState(0)
+  const taskListRef = useRef<HTMLUListElement | null>(null)
 
   const activeBlock = useMemo(() => {
     if (!weeklySchedule) return null
@@ -55,6 +57,13 @@ export function StartTrackingPopover({ open, onClose }: StartTrackingPopoverProp
       setSelectedGoalId(activeBlock?.goalId || NO_GOAL)
     }
   }, [open, activeBlock?.goalId])
+
+  // Reset the keyboard highlight to the first row every time the search
+  // query changes so Enter always starts the top match. Also reset to 0
+  // when the popover re-opens.
+  useEffect(() => {
+    setHighlightedIndex(0)
+  }, [query, open])
 
   const filtered = useMemo<Task[]>(() => {
     const q = query.trim().toLowerCase()
@@ -190,6 +199,27 @@ export function StartTrackingPopover({ open, onClose }: StartTrackingPopoverProp
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowDown') {
+                e.preventDefault()
+                setHighlightedIndex((i) =>
+                  filtered.length === 0 ? 0 : Math.min(i + 1, filtered.length - 1),
+                )
+              } else if (e.key === 'ArrowUp') {
+                e.preventDefault()
+                setHighlightedIndex((i) => Math.max(i - 1, 0))
+              } else if (e.key === 'Enter') {
+                if (filtered.length === 0) return
+                e.preventDefault()
+                const pick = filtered[highlightedIndex] ?? filtered[0]
+                if (pick) startWithTask(pick)
+              } else if (e.key === 'Escape') {
+                if (query) {
+                  e.preventDefault()
+                  setQuery('')
+                }
+              }
+            }}
             placeholder="Search tasks..."
             className="h-9 w-full rounded-md border border-zinc-200 bg-white pl-8 pr-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#f2cc0d] focus:outline-none focus:ring-1 focus:ring-[#f2cc0d]"
             autoFocus
@@ -216,16 +246,25 @@ export function StartTrackingPopover({ open, onClose }: StartTrackingPopoverProp
             {query ? 'No tasks match. Type a custom title below and press Enter.' : 'No tasks yet.'}
           </div>
         ) : (
-          <ul className="divide-y divide-zinc-100">
-            {filtered.map((task) => {
+          <ul ref={taskListRef} className="divide-y divide-zinc-100">
+            {filtered.map((task, idx) => {
               const isActiveGoal = activeBlock?.goalId && task.goalId === activeBlock.goalId
+              const isHighlighted = idx === highlightedIndex
               return (
                 <li key={task.id}>
                   <button
                     type="button"
+                    ref={(el) => {
+                      if (el && isHighlighted) {
+                        el.scrollIntoView({ block: 'nearest' })
+                      }
+                    }}
                     onClick={() => startWithTask(task)}
+                    onMouseEnter={() => setHighlightedIndex(idx)}
                     title={`Start tracking "${task.title}"`}
-                    className="group/row flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-[#fff7d1]"
+                    className={`group/row flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors ${
+                      isHighlighted ? 'bg-[#fff7d1]' : 'hover:bg-[#fff7d1]'
+                    }`}
                   >
                     <span
                       aria-hidden
