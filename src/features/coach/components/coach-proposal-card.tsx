@@ -712,6 +712,100 @@ export function normalizeCoachActionType(
   return null
 }
 
+// LLMs (GPT especially) often emit "JSON" with // or /* */ comments and
+// trailing commas — both illegal, so JSON.parse throws and the whole proposal
+// silently vanishes, leaving the user with prose and no approval card. Strip
+// those tolerantly before parsing. String-aware, so "https://" and apostrophes
+// inside string values are never touched.
+function parseLenientJson(text: string): unknown {
+  let out = ''
+  let inStr = false
+  let esc = false
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i]
+    const n = text[i + 1]
+    if (inStr) {
+      out += c
+      if (esc) esc = false
+      else if (c === '\\') esc = true
+      else if (c === '"') inStr = false
+      continue
+    }
+    if (c === '"') {
+      inStr = true
+      out += c
+      continue
+    }
+    if (c === '/' && n === '/') {
+      i += 2
+      while (i < text.length && text[i] !== '\n') i++
+      continue
+    }
+    if (c === '/' && n === '*') {
+      i += 2
+      while (i + 1 < text.length && !(text[i] === '*' && text[i + 1] === '/')) i++
+      i++
+      continue
+    }
+    out += c
+  }
+  // Drop trailing commas before a closing } or ].
+  out = out.replace(/,(\s*[}\]])/g, '$1')
+  return JSON.parse(out)
+}
+
+// Collapse identical single-day CREATE_SCHEDULE_BLOCK actions (same title, time,
+// category, goal) into one multi-day action carrying daysOfWeek. The model is
+// asked to do this itself, but often emits one action per day anyway — a full
+// week is then ~90+ actions, over the apply cap. Doing it here guarantees a week
+// stays compact regardless of what the model emits, and the backend expands the
+// daysOfWeek action into a recurring series.
+function collapseMultiDayBlocks(
+  actions: CoachProposalAction[],
+): CoachProposalAction[] {
+  const keyOf = (p: Record<string, unknown>) =>
+    [p.title, p.startTime, p.endTime, p.category ?? '', p.goalId ?? ''].join('|')
+  const isSingleDayBlock = (a: CoachProposalAction) => {
+    const p = (a.payload ?? {}) as Record<string, unknown>
+    return (
+      a.type === 'CREATE_SCHEDULE_BLOCK' &&
+      typeof p.dayOfWeek === 'number' &&
+      !Array.isArray(p.daysOfWeek)
+    )
+  }
+
+  const daysByKey = new Map<string, number[]>()
+  for (const a of actions) {
+    if (!isSingleDayBlock(a)) continue
+    const p = a.payload as Record<string, unknown>
+    const k = keyOf(p)
+    const arr = daysByKey.get(k) ?? []
+    arr.push(p.dayOfWeek as number)
+    daysByKey.set(k, arr)
+  }
+
+  const emitted = new Set<string>()
+  const out: CoachProposalAction[] = []
+  for (const a of actions) {
+    if (!isSingleDayBlock(a)) {
+      out.push(a)
+      continue
+    }
+    const p = a.payload as Record<string, unknown>
+    const k = keyOf(p)
+    if (emitted.has(k)) continue // a later duplicate folded into the group
+    emitted.add(k)
+    const days = Array.from(new Set(daysByKey.get(k) ?? [])).sort((x, y) => x - y)
+    if (days.length > 1) {
+      const { dayOfWeek: _drop, ...rest } = p
+      out.push({ ...a, payload: { ...rest, daysOfWeek: days } })
+    } else {
+      out.push(a)
+    }
+  }
+  return out
+}
+
 export function extractCoachProposals(raw: string): {
   cleaned: string
   proposals: CoachProposalBlock[]
@@ -725,18 +819,24 @@ export function extractCoachProposals(raw: string): {
   const closed = /```coach-proposal\s*\n([\s\S]*?)```/g
   let cleaned = raw.replace(closed, (_m, jsonText: string) => {
     try {
-      const parsed = JSON.parse(jsonText.trim())
+      const parsed = parseLenientJson(jsonText.trim()) as {
+        actions?: unknown[]
+        summary?: unknown
+      }
       if (parsed && Array.isArray(parsed.actions) && parsed.actions.length) {
         // Normalize + validate types here so a hallucinated action (e.g.
         // "ADD_SCHEDULE_BLOCK") is either remapped or dropped, rather than sent
         // on to /apply where one bad type 400s the whole batch.
-        const actions = parsed.actions
+        const normalized = parsed.actions
           .filter((a: any) => a && typeof a === 'object')
           .map((a: any) => {
             const type = normalizeCoachActionType(a.type)
             return type ? { ...a, type } : null
           })
           .filter((a: any): a is CoachProposalAction => a !== null)
+        // Fold per-day repeats into compact multi-day actions so a full week
+        // fits under the apply cap even when the model emits one block per day.
+        const actions = collapseMultiDayBlocks(normalized)
         if (actions.length) {
           proposals.push({
             summary:
