@@ -446,7 +446,8 @@ function ChatMessageRow({
               {pending && (
                 <div className="my-3 flex items-center gap-2 rounded-lg border border-[#f2cc0d]/40 bg-[#fffbea] px-3 py-2 text-xs text-[#8a7307]">
                   <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-[#f2cc0d]" />
-                  Coach is preparing a proposed change...
+                  Coach is preparing a proposed change... a full week can take a
+                  little longer, hang tight.
                 </div>
               )}
               {message.pending && !pending && (

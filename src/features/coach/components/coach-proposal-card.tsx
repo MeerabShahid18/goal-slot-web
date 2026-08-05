@@ -61,6 +61,21 @@ const VERB_CLASSES: Record<'create' | 'update' | 'delete', string> = {
 
 const DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
+// Render a set of weekday numbers as a compact label for multi-day blocks:
+// "every day", "weekdays", "weekends", or "Mon, Wed, Fri".
+function formatDays(days: number[]): string | undefined {
+  const uniq = Array.from(
+    new Set(days.filter((d) => Number.isInteger(d) && d >= 0 && d <= 6)),
+  ).sort((a, b) => a - b)
+  if (uniq.length === 0) return undefined
+  if (uniq.length === 7) return 'every day'
+  if (uniq.length === 5 && [1, 2, 3, 4, 5].every((d) => uniq.includes(d))) {
+    return 'weekdays'
+  }
+  if (uniq.length === 2 && uniq.includes(0) && uniq.includes(6)) return 'weekends'
+  return uniq.map((d) => DAYS_SHORT[d]).join(', ')
+}
+
 /** Look up an existing schedule block from the cached weekly schedule, by id. */
 function findScheduleBlock(queryClient: QueryClient, id: string): any | undefined {
   const weekly = queryClient.getQueryData<Record<number, any[]>>(['schedule', 'weekly'])
@@ -168,10 +183,24 @@ function describeAction(
 
     case 'CREATE_SCHEDULE_BLOCK': {
       const title = typeof p.title === 'string' ? `"${p.title}"` : 'New block'
-      const day = typeof p.dayOfWeek === 'number' ? DAYS_SHORT[p.dayOfWeek] : undefined
+      // Multi-day blocks arrive as daysOfWeek:number[]; single-day as dayOfWeek.
+      const days = Array.isArray(p.daysOfWeek)
+        ? (p.daysOfWeek as unknown[]).filter(
+            (d): d is number => typeof d === 'number',
+          )
+        : typeof p.dayOfWeek === 'number'
+          ? [p.dayOfWeek]
+          : []
+      const dayLabel = formatDays(days)
       const range = fmtTimeRange(p.startTime, p.endTime)
-      const subject = [title, day, range].filter(Boolean).join(', ')
-      return { subject, detail: 'Add to your schedule.' }
+      const subject = [title, dayLabel, range].filter(Boolean).join(', ')
+      return {
+        subject,
+        detail:
+          days.length > 1
+            ? `Add to your schedule on ${days.length} days.`
+            : 'Add to your schedule.',
+      }
     }
 
     case 'RENAME_GOAL':

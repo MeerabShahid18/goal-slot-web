@@ -458,7 +458,8 @@ function PopoverMessageRow({
           {pending && (
             <div className="my-2 flex items-center gap-2 rounded-lg border border-[#f2cc0d]/40 bg-[#fffbea] px-2.5 py-1.5 text-[11px] text-[#8a7307]">
               <span className="inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-[#f2cc0d]" />
-              Coach is preparing a proposed change…
+              Coach is preparing a proposed change… a full week can take a little
+              longer.
             </div>
           )}
           {message.pending && !pending && (
