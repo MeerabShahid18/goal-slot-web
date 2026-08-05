@@ -117,20 +117,8 @@ function isAxios404(err: unknown): boolean {
   return axios.isAxiosError(err) && err.response?.status === 404
 }
 
-function statusOf(err: unknown): number | undefined {
-  if (axios.isAxiosError(err)) return err.response?.status
-  if (err && typeof err === 'object' && 'status' in err) {
-    const s = (err as { status?: unknown }).status
-    if (typeof s === 'number') return s
-  }
-  return undefined
-}
 
-import { CoachErrorText, showCoachStreamError } from '@/features/coach/utils/stream-error-toast'
-
-function handleStreamError(status: number | undefined, message: string) {
-  showCoachStreamError(status, message)
-}
+import { CoachErrorText } from '@/features/coach/utils/stream-error-toast'
 
 // ---------------------------------------------------------------------------
 // Narrative
@@ -226,9 +214,7 @@ export function NarrativeSection({ scopeKey }: NarrativeSectionProps) {
         // Aborting the narrative stream (component unmount, or a re-run that
         // cancels the prior request) is intentional, not an error to surface.
         if (controller.signal.aborted) return
-        const status = statusOf(err)
         const message = err instanceof Error ? err.message : 'Failed to generate narrative'
-        handleStreamError(status, message)
         setStreamError(message)
       } finally {
         setIsStreaming(false)
@@ -491,6 +477,14 @@ function ChatSection({ scopeKey }: ChatSectionProps) {
       const res = await coachApi.getChatHistory(scopeKey)
       return res.data ?? []
     },
+    // The user message is persisted server-side the moment it's sent, and a
+    // reply that was still streaming when the user navigated away keeps going
+    // on the server. Refetching whenever the Coach remounts or the tab regains
+    // focus means a question never visually vanishes on a tab switch, and a
+    // reply that finished while we were away shows up when we come back.
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    staleTime: 0,
   })
 
   const [input, setInput] = useState('')
@@ -520,6 +514,13 @@ function ChatSection({ scopeKey }: ChatSectionProps) {
     }
     return list
   }, [persistedMessages, optimistic, streaming, streamingReply])
+
+  // A question whose reply never landed (interrupted by a page refresh or the
+  // Stop button) comes back as a trailing USER message with no ASSISTANT after
+  // it. Surface a one-tap retry instead of making the user retype.
+  const lastPersisted = persistedMessages[persistedMessages.length - 1]
+  const replyInterrupted =
+    !streaming && optimistic.length === 0 && lastPersisted?.role === 'USER'
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -603,7 +604,6 @@ function ChatSection({ scopeKey }: ChatSectionProps) {
           // Stream completed with an error (budget exceeded, key removed, etc.
           // surfaces here instead of via throw because the SSE bridge wraps
           // backend throws into a terminal {error, done:true} chunk).
-          handleStreamError(undefined, streamErr)
           setError(streamErr)
           // Restore the user's typed text and drop the optimistic bubble so
           // they can fix-and-retry without retyping.
@@ -623,9 +623,7 @@ function ChatSection({ scopeKey }: ChatSectionProps) {
         // can reject here when the abort lands before the stream opens. That's
         // not a failure — leave the chat as-is and show nothing.
         if (controller.signal.aborted) return
-        const status = statusOf(err)
         const message = err instanceof Error ? err.message : 'Chat failed'
-        handleStreamError(status, message)
         setError(message)
         // Send failed (budget exceeded, key removed, network, etc). Restore
         // what the user wrote so they don't have to retype, and drop the
@@ -753,6 +751,18 @@ function ChatSection({ scopeKey }: ChatSectionProps) {
             className="text-xs font-medium text-[#8a7307] underline underline-offset-2 hover:text-[#6b5905]"
           >
             Cancel
+          </button>
+        </div>
+      )}
+      {replyInterrupted && lastPersisted && !editingFromMessageId && (
+        <div className="flex items-center justify-between gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs text-zinc-600">
+          <span>The reply was interrupted before it finished.</span>
+          <button
+            type="button"
+            onClick={() => void handleSend(lastPersisted.content)}
+            className="text-xs font-medium text-[#8a7307] underline underline-offset-2 hover:text-[#6b5905]"
+          >
+            Retry
           </button>
         </div>
       )}

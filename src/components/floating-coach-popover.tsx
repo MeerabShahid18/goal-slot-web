@@ -25,7 +25,7 @@ import { useDismissable } from '@/lib/use-dismissable'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { CoachIcon } from '@/components/icons/coach-icon'
 import { CoachMarkdown } from '@/features/coach/components/coach-markdown'
-import { CoachErrorText, showCoachStreamError, statusOf } from '@/features/coach/utils/stream-error-toast'
+import { CoachErrorText } from '@/features/coach/utils/stream-error-toast'
 import {
   CoachProposalCard,
   extractCoachProposals,
@@ -67,6 +67,12 @@ export function FloatingCoachPopover({ open, onClose }: FloatingCoachPopoverProp
       const res = await coachApi.getChatHistory(scopeKey)
       return res.data ?? []
     },
+    // Refetch each time the popover opens / the tab refocuses so a question
+    // sent earlier (persisted server-side) and any reply that finished while
+    // the popover was closed both show up instead of disappearing.
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    staleTime: 0,
   })
 
   const persistedMessages = useMemo<ChatMessageView[]>(() => {
@@ -190,7 +196,6 @@ export function FloatingCoachPopover({ open, onClose }: FloatingCoachPopoverProp
           // SSE bridge wraps backend throws (budget exceeded, key removed)
           // into a terminal {error, done:true} chunk, surface here.
           setError(streamErr)
-          showCoachStreamError(undefined, streamErr)
           setInput((cur) => cur || trimmed)
           setOptimistic((prev) => prev.filter((m) => m.id !== userMsgId))
         } else {
@@ -209,7 +214,6 @@ export function FloatingCoachPopover({ open, onClose }: FloatingCoachPopoverProp
         if (!controller.signal.aborted && (err as any)?.name !== 'AbortError') {
           const m = err instanceof Error ? err.message : 'Chat failed'
           setError(m)
-          showCoachStreamError(statusOf(err), m)
           // Restore the user's input so they don't have to retype after a
           // budget/key/network failure, and drop the optimistic bubble.
           setInput((cur) => cur || trimmed)

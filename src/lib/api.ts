@@ -614,6 +614,29 @@ export type CoachProposalActionType =
   | 'DELETE_TASK'
   | 'CREATE_PRACTICE'
 
+/**
+ * Runtime source-of-truth for the action types the API accepts. Kept in lockstep
+ * with the backend's COACH_ACTION_TYPES enum. Used to validate proposals the
+ * model emits so a hallucinated type (e.g. "ADD_SCHEDULE_BLOCK") can't slip
+ * through and 400 the whole apply batch.
+ */
+export const COACH_PROPOSAL_ACTION_TYPES: readonly CoachProposalActionType[] = [
+  'RENAME_GOAL',
+  'UPDATE_GOAL',
+  'CREATE_GOAL',
+  'DELETE_GOAL',
+  'CREATE_SCHEDULE_BLOCK',
+  'UPDATE_SCHEDULE_BLOCK',
+  'DELETE_SCHEDULE_BLOCK',
+  'CREATE_TIME_ENTRY',
+  'UPDATE_TIME_ENTRY',
+  'DELETE_TIME_ENTRY',
+  'CREATE_TASK',
+  'UPDATE_TASK',
+  'DELETE_TASK',
+  'CREATE_PRACTICE',
+]
+
 export interface CoachProposalAction {
   type: CoachProposalActionType
   id?: string

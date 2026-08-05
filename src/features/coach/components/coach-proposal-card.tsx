@@ -20,6 +20,7 @@ import {
   goalsApi,
   scheduleApi,
   timeEntriesApi,
+  COACH_PROPOSAL_ACTION_TYPES,
   type CoachProposalAction,
   type CoachProposalActionType,
   type CoachProposalBlock,
@@ -636,6 +637,52 @@ export function CoachProposalCard({ block, sourceMessageId }: CoachProposalCardP
  *  - open block at end (model still streaming JSON)    stripped from cleaned text, `pending` flagged so UI shows a placeholder
  *  - opening fence partially typed (e.g. "```coach")   trimmed off the tail so the user never sees raw fence/JSON
  */
+const VALID_ACTION_TYPES = new Set<string>(COACH_PROPOSAL_ACTION_TYPES)
+
+// Common verbs the model reaches for that aren't the canonical names. Mapping
+// them (instead of dropping) means a proposal survives when Gemini says
+// "ADD_SCHEDULE_BLOCK" instead of "CREATE_SCHEDULE_BLOCK".
+const ACTION_TYPE_SYNONYMS: Record<string, CoachProposalActionType> = {
+  ADD_GOAL: 'CREATE_GOAL',
+  NEW_GOAL: 'CREATE_GOAL',
+  EDIT_GOAL: 'UPDATE_GOAL',
+  MODIFY_GOAL: 'UPDATE_GOAL',
+  REMOVE_GOAL: 'DELETE_GOAL',
+  ADD_SCHEDULE_BLOCK: 'CREATE_SCHEDULE_BLOCK',
+  NEW_SCHEDULE_BLOCK: 'CREATE_SCHEDULE_BLOCK',
+  ADD_BLOCK: 'CREATE_SCHEDULE_BLOCK',
+  EDIT_SCHEDULE_BLOCK: 'UPDATE_SCHEDULE_BLOCK',
+  MODIFY_SCHEDULE_BLOCK: 'UPDATE_SCHEDULE_BLOCK',
+  MOVE_SCHEDULE_BLOCK: 'UPDATE_SCHEDULE_BLOCK',
+  UPDATE_BLOCK: 'UPDATE_SCHEDULE_BLOCK',
+  REMOVE_SCHEDULE_BLOCK: 'DELETE_SCHEDULE_BLOCK',
+  DELETE_BLOCK: 'DELETE_SCHEDULE_BLOCK',
+  REMOVE_BLOCK: 'DELETE_SCHEDULE_BLOCK',
+  ADD_TASK: 'CREATE_TASK',
+  EDIT_TASK: 'UPDATE_TASK',
+  REMOVE_TASK: 'DELETE_TASK',
+  ADD_TIME_ENTRY: 'CREATE_TIME_ENTRY',
+  EDIT_TIME_ENTRY: 'UPDATE_TIME_ENTRY',
+  REMOVE_TIME_ENTRY: 'DELETE_TIME_ENTRY',
+  ADD_PRACTICE: 'CREATE_PRACTICE',
+  NEW_PRACTICE: 'CREATE_PRACTICE',
+}
+
+/**
+ * Coerce a model-emitted action type to a canonical one, or null if it can't be
+ * mapped. Dropping the unmappable ones on the client is what keeps a single bad
+ * type from 400-ing the entire apply batch on the server.
+ */
+export function normalizeCoachActionType(
+  raw: unknown,
+): CoachProposalActionType | null {
+  if (typeof raw !== 'string') return null
+  const key = raw.trim().toUpperCase()
+  if (VALID_ACTION_TYPES.has(key)) return key as CoachProposalActionType
+  if (key in ACTION_TYPE_SYNONYMS) return ACTION_TYPE_SYNONYMS[key]
+  return null
+}
+
 export function extractCoachProposals(raw: string): {
   cleaned: string
   proposals: CoachProposalBlock[]
@@ -651,12 +698,23 @@ export function extractCoachProposals(raw: string): {
     try {
       const parsed = JSON.parse(jsonText.trim())
       if (parsed && Array.isArray(parsed.actions) && parsed.actions.length) {
-        proposals.push({
-          summary: typeof parsed.summary === 'string' ? parsed.summary : undefined,
-          actions: parsed.actions.filter(
-            (a: any) => a && typeof a === 'object' && typeof a.type === 'string',
-          ),
-        })
+        // Normalize + validate types here so a hallucinated action (e.g.
+        // "ADD_SCHEDULE_BLOCK") is either remapped or dropped, rather than sent
+        // on to /apply where one bad type 400s the whole batch.
+        const actions = parsed.actions
+          .filter((a: any) => a && typeof a === 'object')
+          .map((a: any) => {
+            const type = normalizeCoachActionType(a.type)
+            return type ? { ...a, type } : null
+          })
+          .filter((a: any): a is CoachProposalAction => a !== null)
+        if (actions.length) {
+          proposals.push({
+            summary:
+              typeof parsed.summary === 'string' ? parsed.summary : undefined,
+            actions,
+          })
+        }
       }
     } catch {
       /* malformed, drop silently */
