@@ -194,6 +194,9 @@ export function NarrativeSection({ scopeKey }: NarrativeSectionProps) {
             break
           }
         }
+        // If the stream was stopped mid-flight, the parser ends cleanly and we
+        // land here with a partial `acc`. Don't cache a half-written narrative.
+        if (controller.signal.aborted) return
         if (lastError) {
           setStreamError(lastError)
         } else {
@@ -220,6 +223,9 @@ export function NarrativeSection({ scopeKey }: NarrativeSectionProps) {
           }, 2000)
         }
       } catch (err) {
+        // Aborting the narrative stream (component unmount, or a re-run that
+        // cancels the prior request) is intentional, not an error to surface.
+        if (controller.signal.aborted) return
         const status = statusOf(err)
         const message = err instanceof Error ? err.message : 'Failed to generate narrative'
         handleStreamError(status, message)
@@ -613,6 +619,10 @@ function ChatSection({ scopeKey }: ChatSectionProps) {
           setOptimistic([])
         }
       } catch (err) {
+        // Intentional Stop (or a rapid re-send that aborts the prior request)
+        // can reject here when the abort lands before the stream opens. That's
+        // not a failure — leave the chat as-is and show nothing.
+        if (controller.signal.aborted) return
         const status = statusOf(err)
         const message = err instanceof Error ? err.message : 'Chat failed'
         handleStreamError(status, message)

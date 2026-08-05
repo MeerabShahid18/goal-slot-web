@@ -203,7 +203,10 @@ export function FloatingCoachPopover({ open, onClose }: FloatingCoachPopoverProp
           setOptimistic([])
         }
       } catch (err) {
-        if ((err as any)?.name !== 'AbortError') {
+        // Intentional Stop: skip the error UI. Check the signal directly rather
+        // than trusting err.name — Chrome surfaces a mid-stream abort as a
+        // DOMException "BodyStreamBuffer was aborted" whose name isn't AbortError.
+        if (!controller.signal.aborted && (err as any)?.name !== 'AbortError') {
           const m = err instanceof Error ? err.message : 'Chat failed'
           setError(m)
           showCoachStreamError(statusOf(err), m)

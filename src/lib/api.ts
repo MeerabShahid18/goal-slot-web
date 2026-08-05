@@ -658,10 +658,22 @@ async function* parseCoachSseStream(
   try {
     while (true) {
       if (signal?.aborted) {
-        await reader.cancel()
+        await reader.cancel().catch(() => {})
         return
       }
-      const { value, done } = await reader.read()
+      let value: Uint8Array | undefined
+      let done = false
+      try {
+        ;({ value, done } = await reader.read())
+      } catch (err) {
+        // An in-flight read() rejects when the caller aborts the request
+        // mid-stream — Chrome throws a DOMException "BodyStreamBuffer was
+        // aborted". That's an intentional stop (user hit Stop, or the
+        // component unmounted), not a failure, so end the stream quietly
+        // instead of letting it bubble up and render as a chat error.
+        if (signal?.aborted) return
+        throw err
+      }
       if (done) break
       buffer += decoder.decode(value, { stream: true })
 
