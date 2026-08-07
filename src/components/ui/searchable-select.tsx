@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { Check, ChevronsUpDown, Search } from 'lucide-react'
+import { RemoveScroll } from 'react-remove-scroll'
 
 import { cn } from '@/lib/utils'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -155,7 +156,13 @@ export function SearchableSelect({
               />
             </div>
           </div>
-          <ul ref={listRef} className="max-h-64 overflow-y-auto py-1" role="listbox">
+          {/* RemoveScroll gives this list its own scroll-allow region. Without
+              it, when the select is opened inside a Dialog (e.g. the schedule
+              block editor), the Dialog's scroll lock blocks touch-scrolling the
+              options on mobile — the list simply wouldn't scroll on a phone.
+              This mirrors how Radix Select stays scrollable inside a dialog. */}
+          <RemoveScroll allowPinchZoom removeScrollBar={false}>
+            <ul ref={listRef} className="max-h-64 overflow-y-auto overscroll-contain py-1" role="listbox">
             {filtered.length === 0 ? (
               <li className="px-3 py-2 text-xs text-zinc-500">{emptyMessage}</li>
             ) : (
@@ -200,7 +207,8 @@ export function SearchableSelect({
                 )
               })
             )}
-          </ul>
+            </ul>
+          </RemoveScroll>
         </PopoverContent>
       </Popover>
     </div>
