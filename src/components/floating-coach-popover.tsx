@@ -360,7 +360,9 @@ export function FloatingCoachPopover({ open, onClose }: FloatingCoachPopoverProp
           onChange={(e) => setInput(e.target.value)}
           placeholder="Ask anything..."
           disabled={streaming}
-          className="h-9 flex-1 rounded-md border border-zinc-200 bg-white px-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#f2cc0d] focus:outline-none focus:ring-1 focus:ring-[#f2cc0d] disabled:opacity-50"
+          // min-w-0 so the field can shrink in the row; text-base (16px) on
+          // mobile stops iOS Safari zooming in on focus, text-sm from sm: up.
+          className="h-9 min-w-0 flex-1 rounded-md border border-zinc-200 bg-white px-2.5 text-base text-zinc-900 placeholder:text-zinc-400 focus:border-[#f2cc0d] focus:outline-none focus:ring-1 focus:ring-[#f2cc0d] disabled:opacity-50 sm:text-sm"
         />
         {streaming ? (
           <button

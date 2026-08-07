@@ -767,7 +767,7 @@ function ChatSection({ scopeKey }: ChatSectionProps) {
           </button>
         </div>
       )}
-      <form onSubmit={onSubmit} className="flex flex-col gap-2 sm:flex-row sm:items-center">
+      <form onSubmit={onSubmit} className="flex flex-row items-center gap-2">
         {(persistedMessages.length > 0 || optimistic.length > 0) && (
           <Button
             type="button"
@@ -788,7 +788,10 @@ function ChatSection({ scopeKey }: ChatSectionProps) {
           onChange={(e) => setInput(e.target.value)}
           placeholder={editingFromMessageId ? 'Edit your message...' : 'Ask the Coach a question...'}
           disabled={streaming}
-          className="flex-1"
+          // min-w-0 lets the field shrink inside the flex row on narrow phones;
+          // text-base (16px) on mobile stops iOS Safari from auto-zooming the
+          // page when the field is focused. Back to text-sm from sm: up.
+          className="min-w-0 flex-1 text-base sm:text-sm"
         />
         {streaming ? (
           <Button
@@ -800,14 +803,20 @@ function ChatSection({ scopeKey }: ChatSectionProps) {
               setStreaming(false)
             }}
             title="Stop the Coach mid-reply"
+            className="shrink-0 px-3"
           >
             <Square className="h-3.5 w-3.5" />
-            Stop
+            <span className="hidden sm:inline">Stop</span>
           </Button>
         ) : (
-          <Button type="submit" variant="brand" disabled={!input.trim()}>
+          <Button
+            type="submit"
+            variant="brand"
+            disabled={!input.trim()}
+            className="shrink-0 px-3"
+          >
             <Send className="h-3.5 w-3.5" />
-            Send
+            <span className="hidden sm:inline">Send</span>
           </Button>
         )}
       </form>
