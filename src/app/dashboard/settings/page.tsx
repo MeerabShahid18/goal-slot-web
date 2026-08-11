@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 import { CategoryManagement } from '@/features/categories/components/category-management'
+import { EnablePushNotificationsButton } from '@/features/push-notifications/components/enable-push-notifications-button'
 import { SettingsCoachProfileTab, SettingsIntegrationsTab } from '@/features/settings'
 import { motion } from 'framer-motion'
 import { Brain, Check, CreditCard, Crown, Download, Eye, EyeOff, Key, KeyRound, LogOut, Moon, Palette, Shield, Sun, Tag, Trash2, User } from 'lucide-react'
@@ -294,6 +295,15 @@ function ProfileSettings() {
             {user?.userType === 'EXTERNAL' && 'External Account'}
           </div>
         </div>
+      </div>
+
+      {/* Notifications */}
+      <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+        <h2 className="mb-1 text-xl font-bold uppercase">Notifications</h2>
+        <p className="mb-4 text-xs text-zinc-500">
+          Get a push notification when a mentor or mentee update needs your attention, even with the tab closed.
+        </p>
+        <EnablePushNotificationsButton />
       </div>
     </motion.div>
   )
