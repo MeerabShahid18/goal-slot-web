@@ -121,3 +121,21 @@ export interface CreatePublicLinkParams {
   accessLevel?: AccessLevel
   expiresInDays?: number
 }
+
+export type InstructionStatus = 'PENDING' | 'DONE'
+
+export interface Instruction {
+  id: string
+  title: string
+  note?: string | null
+  status: InstructionStatus
+  completedAt?: string | null
+  createdAt: string
+  assignee: SharedUser
+}
+
+export interface AssignInstructionParams {
+  assigneeId: string
+  title: string
+  note?: string
+}
