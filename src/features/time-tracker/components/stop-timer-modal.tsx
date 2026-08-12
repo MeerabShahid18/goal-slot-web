@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 
+import { UNTITLED_ENTRY_TITLE } from '@/features/time-tracker/utils/entry-title'
 import { CheckCircle, Clock } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -123,13 +124,14 @@ export function StopTimerModal({
               underlying task record. */}
           <div>
             <Label htmlFor="stop-task-title" className="text-[10px] tracking-wider">
-              What were you working on?
+              <span>What were you working on?</span>
+              <span className="ml-1 font-normal normal-case text-zinc-400">optional</span>
             </Label>
             <Input
               id="stop-task-title"
               value={taskTitle}
               onChange={(e) => setTaskTitle(e.target.value)}
-              placeholder="Task title"
+              placeholder={`Leave blank to log as "${UNTITLED_ENTRY_TITLE}"`}
               className="h-9 text-sm"
             />
           </div>

@@ -4,6 +4,7 @@ import { useState } from 'react'
 
 import { useCreateTimeEntry } from '@/features/time-tracker/hooks/use-time-tracker-mutations'
 import { useTimer } from '@/features/time-tracker/hooks/use-timer'
+import { resolveEntryTitle } from '@/features/time-tracker/utils/entry-title'
 import { toast } from 'react-hot-toast'
 
 import { getLocalDateString } from '@/lib/utils'
@@ -61,11 +62,14 @@ export function useStartTimerWithConfirmation() {
     try {
       const duration = Math.max(1, Math.floor(elapsedTime / 60)) // At least 1 minute
 
-      // Save the CURRENT timer as a time entry (not the pending one)
+      // Save the CURRENT timer as a time entry (not the pending one). The
+      // session being replaced may have been started with no title at all.
+      const outgoingTitle = resolveEntryTitle(currentTask)
+
       await createEntry.mutateAsync({
-        taskName: currentTask,
+        taskName: outgoingTitle,
         taskId: currentTaskId || undefined,
-        taskTitle: currentTask,
+        taskTitle: outgoingTitle,
         duration,
         date: getLocalDateString(),
         notes: 'Timer session',

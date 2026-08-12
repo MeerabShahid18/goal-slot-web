@@ -9,6 +9,7 @@ import { toast } from 'react-hot-toast'
 import { useTimerStore } from '@/lib/use-timer-store'
 import { useTimerNotifications } from '@/hooks/use-timer-notifications'
 import { useCreateTimeEntry } from '@/features/time-tracker/hooks/use-time-tracker-mutations'
+import { UNTITLED_ENTRY_TITLE, resolveEntryTitle } from '@/features/time-tracker/utils/entry-title'
 import { formatDuration, getLocalDateString } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -129,7 +130,10 @@ export function TimeEntryBanner() {
 
   const handleStop = async () => {
     const duration = Math.max(1, Math.floor(elapsedSeconds / 60)) // At least 1 minute for the entry
-    const taskTitle = currentTask
+    // A session can be started with nothing filled in, so the title may still
+    // be blank here. taskName is required downstream — resolve it, don't ship
+    // an empty string that reports would render as a nameless row.
+    const taskTitle = resolveEntryTitle(currentTask)
 
     createEntry.mutate(
       {
@@ -169,10 +173,10 @@ export function TimeEntryBanner() {
                 title="Open this task"
                 className="line-clamp-1 inline-block text-sm font-bold underline-offset-2 hover:text-yellow-800 hover:underline sm:text-base md:text-lg"
               >
-                {currentTask || 'Untitled Task'}
+                {currentTask || UNTITLED_ENTRY_TITLE}
               </Link>
             ) : (
-              <p className="line-clamp-1 text-sm font-bold sm:text-base md:text-lg">{currentTask || 'Untitled Task'}</p>
+              <p className="line-clamp-1 text-sm font-bold sm:text-base md:text-lg">{currentTask || UNTITLED_ENTRY_TITLE}</p>
             )}
           </div>
         </div>
