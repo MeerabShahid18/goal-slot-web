@@ -10,6 +10,7 @@ import { toast } from 'react-hot-toast'
 
 import { coachApi, type CoachMessageDto, type CoachStreamChunk } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { onCoachSendRequest } from '@/lib/coach-bridge'
 import { PROVIDER_META, useByokKey } from '@/features/settings/hooks/use-byok-key'
 import { useCoachInsights } from '@/features/coach/hooks/use-coach-insights'
 import { ActivePracticeSection } from '@/features/coach/components/active-practice-section'
@@ -644,6 +645,18 @@ function ChatSection({ scopeKey }: ChatSectionProps) {
     e.preventDefault()
     void handleSend(input)
   }
+
+  // Voice input bridge. On this route the quick-chat popover is not mounted
+  // (FloatingCoachButton bails on /dashboard/coach), so the full chat is the
+  // surface that answers the floating microphone. Same handleSend as the
+  // typed composer, so a spoken request produces the same proposals and the
+  // same CoachProposalCard confirmation step.
+  useEffect(() => {
+    return onCoachSendRequest((content) => {
+      if (streaming) return 'the Coach is still replying. Wait for it to finish'
+      void handleSend(content)
+    })
+  }, [handleSend, streaming])
 
   const performClearChat = useCallback(async () => {
     try {
