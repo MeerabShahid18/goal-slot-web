@@ -22,7 +22,26 @@ interface SearchableSelectProps {
   value: string
   onChange: (next: string) => void
   placeholder?: string
+  /** Shown when the option list itself is empty (nothing to choose from). */
   emptyMessage?: string
+  /**
+   * Extra sentence appended to the "no matches for X" state that explains what
+   * was searched — e.g. "Searched all 24 goals." An empty dropdown should never
+   * leave the user guessing whether something is being filtered out.
+   */
+  emptyHint?: string
+  /**
+   * Escape hatch offered next to "Clear search" when a search comes back empty.
+   * Use it whenever the caller narrows `options` itself, so the user can undo
+   * that narrowing from inside the dropdown.
+   */
+  emptyAction?: { label: string; onClick: () => void }
+  /**
+   * Rendered between the search box and the option list. Use it to make any
+   * caller-side filtering or ordering visible rather than silently changing
+   * what the user can find.
+   */
+  notice?: React.ReactNode
   disabled?: boolean
   className?: string
   triggerClassName?: string
@@ -39,7 +58,10 @@ export function SearchableSelect({
   value,
   onChange,
   placeholder = 'Select...',
-  emptyMessage = 'No matches.',
+  emptyMessage = 'Nothing to choose from yet.',
+  emptyHint,
+  emptyAction,
+  notice,
   disabled = false,
   className,
   triggerClassName,
@@ -52,6 +74,7 @@ export function SearchableSelect({
   const listRef = useRef<HTMLUListElement | null>(null)
 
   const selected = options.find((o) => o.value === value)
+  const trimmedQuery = query.trim()
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -156,6 +179,18 @@ export function SearchableSelect({
               />
             </div>
           </div>
+          {notice && (
+            /* A control in the notice usually unmounts the notice itself (it
+               undoes the thing the notice is announcing). Pull focus back to
+               the search box so it never lands on <body>, which would leave
+               Escape unhandled and the popover stuck open. */
+            <div
+              className="border-b border-zinc-100 bg-zinc-50 px-3 py-1.5 text-[10px] leading-tight text-zinc-500"
+              onClick={() => requestAnimationFrame(() => inputRef.current?.focus())}
+            >
+              {notice}
+            </div>
+          )}
           {/* RemoveScroll gives this list its own scroll-allow region. Without
               it, when the select is opened inside a Dialog (e.g. the schedule
               block editor), the Dialog's scroll lock blocks touch-scrolling the
@@ -164,7 +199,46 @@ export function SearchableSelect({
           <RemoveScroll allowPinchZoom removeScrollBar={false}>
             <ul ref={listRef} className="max-h-64 overflow-y-auto overscroll-contain py-1" role="listbox">
             {filtered.length === 0 ? (
-              <li className="px-3 py-2 text-xs text-zinc-500">{emptyMessage}</li>
+              /* Never dead-end on a bare "No matches." — say what was searched
+                 and give the user a way back to a non-empty list. */
+              <li className="px-3 py-2.5">
+                {trimmedQuery ? (
+                  <div className="space-y-2">
+                    <p className="text-xs text-zinc-600">
+                      No matches for{' '}
+                      <span className="font-semibold text-zinc-900">&ldquo;{trimmedQuery}&rdquo;</span>.
+                      {emptyHint ? <span className="text-zinc-500"> {emptyHint}</span> : null}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQuery('')
+                          inputRef.current?.focus()
+                        }}
+                        className="rounded-md border border-zinc-200 bg-white px-2 py-1 text-[11px] font-medium text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-50"
+                      >
+                        Clear search
+                      </button>
+                      {emptyAction && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            emptyAction.onClick()
+                            setQuery('')
+                            inputRef.current?.focus()
+                          }}
+                          className="rounded-md border border-zinc-200 bg-white px-2 py-1 text-[11px] font-medium text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-50"
+                        >
+                          {emptyAction.label}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-zinc-500">{emptyMessage}</p>
+                )}
+              </li>
             ) : (
               filtered.map((option, index) => {
                 const isSel = option.value === value
