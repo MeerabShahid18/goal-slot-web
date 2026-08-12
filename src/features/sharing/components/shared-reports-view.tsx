@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { FocusBreakdownCard } from '@/features/reports/components/focus-breakdown-card'
 import { FocusCategoryPieCard } from '@/features/reports/components/focus-category-pie-card'
@@ -11,11 +11,15 @@ import { FocusTimeGridCard } from '@/features/reports/components/focus-time-grid
 import { FocusTrendCard } from '@/features/reports/components/focus-trend-card'
 import { ViewGranularityTabs } from '@/features/reports/components/view-granularity-tabs'
 import type { FocusGranularity } from '@/features/reports/utils/types'
+import { AssignInstructionDialog } from '@/features/sharing/components/assign-instruction-dialog'
+import { SentInstructionsList } from '@/features/sharing/components/sent-instructions-list'
 import { SharedReportExport } from '@/features/sharing/components/shared-report-export'
+import { useMarkSharedReportViewedMutation } from '@/features/sharing/hooks/use-instructions-queries'
 import { useSharedUserGoalsQuery } from '@/features/sharing/hooks/use-sharing-queries'
 import { SharedGoal, SharedWithMeUser } from '@/features/sharing/utils/types'
-import { User } from 'lucide-react'
+import { ClipboardPlus, User } from 'lucide-react'
 
+import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 interface SharedReportsViewProps {
@@ -28,11 +32,26 @@ export function SharedReportsView({ sharedWithMe }: SharedReportsViewProps) {
   )
   const [view, setView] = useState<FocusGranularity>('week')
   const [filters, setFilters] = useState<ReportFilterState>(emptyFilters)
+  const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false)
 
-  const selectedUser = sharedWithMe.find((s) => s.owner.id === selectedUserId)?.owner
+  const selectedShare = sharedWithMe.find((s) => s.owner.id === selectedUserId)
+  const selectedUser = selectedShare?.owner
 
   // Fetch goals for selected user to populate filters
   const goalsQuery = useSharedUserGoalsQuery(selectedUserId)
+
+  const markSharedReportViewedMutation = useMarkSharedReportViewedMutation()
+
+  // "Any glance counts" per the design spec: record a view the moment a
+  // mentee is selected, not on every render. Keyed on the id (not the
+  // share object) so switching back to the same mentee later fires again,
+  // but re-renders while looking at the same mentee do not.
+  useEffect(() => {
+    if (selectedShare) {
+      markSharedReportViewedMutation.mutate(selectedShare.id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedShare?.id])
 
   const sharedGoals = useMemo(() => (goalsQuery.data ?? []) as SharedGoal[], [goalsQuery.data])
 
@@ -131,10 +150,23 @@ export function SharedReportsView({ sharedWithMe }: SharedReportsViewProps) {
                 />
               </div>
 
-              {/* Right Group: Export */}
-              <SharedReportExport userId={selectedUserId!} userName={selectedUser.name ?? 'report'} />
+              {/* Right Group: Assign & Export */}
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  variant="secondary"
+                  size="default"
+                  className="h-10 gap-2 font-bold"
+                  onClick={() => setIsAssignDialogOpen(true)}
+                >
+                  <ClipboardPlus className="h-4 w-4" />
+                  <span className="hidden sm:inline">Assign Instruction</span>
+                </Button>
+                <SharedReportExport userId={selectedUserId!} userName={selectedUser.name ?? 'report'} />
+              </div>
             </div>
           </div>
+
+          <SentInstructionsList assigneeId={selectedUserId!} />
 
           <div className="grid gap-6">
             <FocusTrendCard view={view} filters={filters} reportUserId={selectedUserId ?? undefined} />
@@ -165,6 +197,15 @@ export function SharedReportsView({ sharedWithMe }: SharedReportsViewProps) {
             </div>
           </div>
         </div>
+      )}
+
+      {selectedUser && selectedUserId && (
+        <AssignInstructionDialog
+          isOpen={isAssignDialogOpen}
+          onClose={() => setIsAssignDialogOpen(false)}
+          assigneeId={selectedUserId}
+          assigneeName={selectedUser.name ?? 'this person'}
+        />
       )}
     </div>
   )
