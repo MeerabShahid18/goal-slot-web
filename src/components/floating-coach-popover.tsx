@@ -21,6 +21,7 @@ import {
   type CoachStreamChunk,
 } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { onCoachSendRequest } from '@/lib/coach-bridge'
 import { useDismissable } from '@/lib/use-dismissable'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { CoachIcon } from '@/components/icons/coach-icon'
@@ -232,6 +233,19 @@ export function FloatingCoachPopover({ open, onClose }: FloatingCoachPopoverProp
     e.preventDefault()
     void handleSend(input)
   }
+
+  // Voice input bridge. The floating microphone dispatches a finished
+  // transcript here and it goes through the very same handleSend the typed
+  // composer uses — same streamChat call, same proposal parsing, same
+  // CoachProposalCard confirmation. Voice is an input method, not a second
+  // way to mutate data.
+  useEffect(() => {
+    return onCoachSendRequest((content) => {
+      if (streaming) return 'the Coach is still replying. Wait for it to finish'
+      if (!scopeKey) return 'the Coach chat is still loading. Try again in a moment'
+      void handleSend(content)
+    })
+  }, [handleSend, scopeKey, streaming])
 
   // Only dismiss on outside-click when no nested ConfirmDialog is open —
   // otherwise clicking the confirm button (rendered in a portal outside
