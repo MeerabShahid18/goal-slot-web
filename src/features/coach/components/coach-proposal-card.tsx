@@ -20,6 +20,7 @@ import {
   goalsApi,
   scheduleApi,
   timeEntriesApi,
+  COACH_PROPOSAL_ACTION_TYPES,
   type CoachProposalAction,
   type CoachProposalActionType,
   type CoachProposalBlock,
@@ -59,6 +60,21 @@ const VERB_CLASSES: Record<'create' | 'update' | 'delete', string> = {
 }
 
 const DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+// Render a set of weekday numbers as a compact label for multi-day blocks:
+// "every day", "weekdays", "weekends", or "Mon, Wed, Fri".
+function formatDays(days: number[]): string | undefined {
+  const uniq = Array.from(
+    new Set(days.filter((d) => Number.isInteger(d) && d >= 0 && d <= 6)),
+  ).sort((a, b) => a - b)
+  if (uniq.length === 0) return undefined
+  if (uniq.length === 7) return 'every day'
+  if (uniq.length === 5 && [1, 2, 3, 4, 5].every((d) => uniq.includes(d))) {
+    return 'weekdays'
+  }
+  if (uniq.length === 2 && uniq.includes(0) && uniq.includes(6)) return 'weekends'
+  return uniq.map((d) => DAYS_SHORT[d]).join(', ')
+}
 
 /** Look up an existing schedule block from the cached weekly schedule, by id. */
 function findScheduleBlock(queryClient: QueryClient, id: string): any | undefined {
@@ -167,10 +183,24 @@ function describeAction(
 
     case 'CREATE_SCHEDULE_BLOCK': {
       const title = typeof p.title === 'string' ? `"${p.title}"` : 'New block'
-      const day = typeof p.dayOfWeek === 'number' ? DAYS_SHORT[p.dayOfWeek] : undefined
+      // Multi-day blocks arrive as daysOfWeek:number[]; single-day as dayOfWeek.
+      const days = Array.isArray(p.daysOfWeek)
+        ? (p.daysOfWeek as unknown[]).filter(
+            (d): d is number => typeof d === 'number',
+          )
+        : typeof p.dayOfWeek === 'number'
+          ? [p.dayOfWeek]
+          : []
+      const dayLabel = formatDays(days)
       const range = fmtTimeRange(p.startTime, p.endTime)
-      const subject = [title, day, range].filter(Boolean).join(', ')
-      return { subject, detail: 'Add to your schedule.' }
+      const subject = [title, dayLabel, range].filter(Boolean).join(', ')
+      return {
+        subject,
+        detail:
+          days.length > 1
+            ? `Add to your schedule on ${days.length} days.`
+            : 'Add to your schedule.',
+      }
     }
 
     case 'RENAME_GOAL':
@@ -636,6 +666,146 @@ export function CoachProposalCard({ block, sourceMessageId }: CoachProposalCardP
  *  - open block at end (model still streaming JSON)    stripped from cleaned text, `pending` flagged so UI shows a placeholder
  *  - opening fence partially typed (e.g. "```coach")   trimmed off the tail so the user never sees raw fence/JSON
  */
+const VALID_ACTION_TYPES = new Set<string>(COACH_PROPOSAL_ACTION_TYPES)
+
+// Common verbs the model reaches for that aren't the canonical names. Mapping
+// them (instead of dropping) means a proposal survives when Gemini says
+// "ADD_SCHEDULE_BLOCK" instead of "CREATE_SCHEDULE_BLOCK".
+const ACTION_TYPE_SYNONYMS: Record<string, CoachProposalActionType> = {
+  ADD_GOAL: 'CREATE_GOAL',
+  NEW_GOAL: 'CREATE_GOAL',
+  EDIT_GOAL: 'UPDATE_GOAL',
+  MODIFY_GOAL: 'UPDATE_GOAL',
+  REMOVE_GOAL: 'DELETE_GOAL',
+  ADD_SCHEDULE_BLOCK: 'CREATE_SCHEDULE_BLOCK',
+  NEW_SCHEDULE_BLOCK: 'CREATE_SCHEDULE_BLOCK',
+  ADD_BLOCK: 'CREATE_SCHEDULE_BLOCK',
+  EDIT_SCHEDULE_BLOCK: 'UPDATE_SCHEDULE_BLOCK',
+  MODIFY_SCHEDULE_BLOCK: 'UPDATE_SCHEDULE_BLOCK',
+  MOVE_SCHEDULE_BLOCK: 'UPDATE_SCHEDULE_BLOCK',
+  UPDATE_BLOCK: 'UPDATE_SCHEDULE_BLOCK',
+  REMOVE_SCHEDULE_BLOCK: 'DELETE_SCHEDULE_BLOCK',
+  DELETE_BLOCK: 'DELETE_SCHEDULE_BLOCK',
+  REMOVE_BLOCK: 'DELETE_SCHEDULE_BLOCK',
+  ADD_TASK: 'CREATE_TASK',
+  EDIT_TASK: 'UPDATE_TASK',
+  REMOVE_TASK: 'DELETE_TASK',
+  ADD_TIME_ENTRY: 'CREATE_TIME_ENTRY',
+  EDIT_TIME_ENTRY: 'UPDATE_TIME_ENTRY',
+  REMOVE_TIME_ENTRY: 'DELETE_TIME_ENTRY',
+  ADD_PRACTICE: 'CREATE_PRACTICE',
+  NEW_PRACTICE: 'CREATE_PRACTICE',
+}
+
+/**
+ * Coerce a model-emitted action type to a canonical one, or null if it can't be
+ * mapped. Dropping the unmappable ones on the client is what keeps a single bad
+ * type from 400-ing the entire apply batch on the server.
+ */
+export function normalizeCoachActionType(
+  raw: unknown,
+): CoachProposalActionType | null {
+  if (typeof raw !== 'string') return null
+  const key = raw.trim().toUpperCase()
+  if (VALID_ACTION_TYPES.has(key)) return key as CoachProposalActionType
+  if (key in ACTION_TYPE_SYNONYMS) return ACTION_TYPE_SYNONYMS[key]
+  return null
+}
+
+// LLMs (GPT especially) often emit "JSON" with // or /* */ comments and
+// trailing commas — both illegal, so JSON.parse throws and the whole proposal
+// silently vanishes, leaving the user with prose and no approval card. Strip
+// those tolerantly before parsing. String-aware, so "https://" and apostrophes
+// inside string values are never touched.
+function parseLenientJson(text: string): unknown {
+  let out = ''
+  let inStr = false
+  let esc = false
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i]
+    const n = text[i + 1]
+    if (inStr) {
+      out += c
+      if (esc) esc = false
+      else if (c === '\\') esc = true
+      else if (c === '"') inStr = false
+      continue
+    }
+    if (c === '"') {
+      inStr = true
+      out += c
+      continue
+    }
+    if (c === '/' && n === '/') {
+      i += 2
+      while (i < text.length && text[i] !== '\n') i++
+      continue
+    }
+    if (c === '/' && n === '*') {
+      i += 2
+      while (i + 1 < text.length && !(text[i] === '*' && text[i + 1] === '/')) i++
+      i++
+      continue
+    }
+    out += c
+  }
+  // Drop trailing commas before a closing } or ].
+  out = out.replace(/,(\s*[}\]])/g, '$1')
+  return JSON.parse(out)
+}
+
+// Collapse identical single-day CREATE_SCHEDULE_BLOCK actions (same title, time,
+// category, goal) into one multi-day action carrying daysOfWeek. The model is
+// asked to do this itself, but often emits one action per day anyway — a full
+// week is then ~90+ actions, over the apply cap. Doing it here guarantees a week
+// stays compact regardless of what the model emits, and the backend expands the
+// daysOfWeek action into a recurring series.
+function collapseMultiDayBlocks(
+  actions: CoachProposalAction[],
+): CoachProposalAction[] {
+  const keyOf = (p: Record<string, unknown>) =>
+    [p.title, p.startTime, p.endTime, p.category ?? '', p.goalId ?? ''].join('|')
+  const isSingleDayBlock = (a: CoachProposalAction) => {
+    const p = (a.payload ?? {}) as Record<string, unknown>
+    return (
+      a.type === 'CREATE_SCHEDULE_BLOCK' &&
+      typeof p.dayOfWeek === 'number' &&
+      !Array.isArray(p.daysOfWeek)
+    )
+  }
+
+  const daysByKey = new Map<string, number[]>()
+  for (const a of actions) {
+    if (!isSingleDayBlock(a)) continue
+    const p = a.payload as Record<string, unknown>
+    const k = keyOf(p)
+    const arr = daysByKey.get(k) ?? []
+    arr.push(p.dayOfWeek as number)
+    daysByKey.set(k, arr)
+  }
+
+  const emitted = new Set<string>()
+  const out: CoachProposalAction[] = []
+  for (const a of actions) {
+    if (!isSingleDayBlock(a)) {
+      out.push(a)
+      continue
+    }
+    const p = a.payload as Record<string, unknown>
+    const k = keyOf(p)
+    if (emitted.has(k)) continue // a later duplicate folded into the group
+    emitted.add(k)
+    const days = Array.from(new Set(daysByKey.get(k) ?? [])).sort((x, y) => x - y)
+    if (days.length > 1) {
+      const { dayOfWeek: _drop, ...rest } = p
+      out.push({ ...a, payload: { ...rest, daysOfWeek: days } })
+    } else {
+      out.push(a)
+    }
+  }
+  return out
+}
+
 export function extractCoachProposals(raw: string): {
   cleaned: string
   proposals: CoachProposalBlock[]
@@ -649,14 +819,31 @@ export function extractCoachProposals(raw: string): {
   const closed = /```coach-proposal\s*\n([\s\S]*?)```/g
   let cleaned = raw.replace(closed, (_m, jsonText: string) => {
     try {
-      const parsed = JSON.parse(jsonText.trim())
+      const parsed = parseLenientJson(jsonText.trim()) as {
+        actions?: unknown[]
+        summary?: unknown
+      }
       if (parsed && Array.isArray(parsed.actions) && parsed.actions.length) {
-        proposals.push({
-          summary: typeof parsed.summary === 'string' ? parsed.summary : undefined,
-          actions: parsed.actions.filter(
-            (a: any) => a && typeof a === 'object' && typeof a.type === 'string',
-          ),
-        })
+        // Normalize + validate types here so a hallucinated action (e.g.
+        // "ADD_SCHEDULE_BLOCK") is either remapped or dropped, rather than sent
+        // on to /apply where one bad type 400s the whole batch.
+        const normalized = parsed.actions
+          .filter((a: any) => a && typeof a === 'object')
+          .map((a: any) => {
+            const type = normalizeCoachActionType(a.type)
+            return type ? { ...a, type } : null
+          })
+          .filter((a: any): a is CoachProposalAction => a !== null)
+        // Fold per-day repeats into compact multi-day actions so a full week
+        // fits under the apply cap even when the model emits one block per day.
+        const actions = collapseMultiDayBlocks(normalized)
+        if (actions.length) {
+          proposals.push({
+            summary:
+              typeof parsed.summary === 'string' ? parsed.summary : undefined,
+            actions,
+          })
+        }
       }
     } catch {
       /* malformed, drop silently */

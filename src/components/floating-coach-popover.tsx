@@ -25,7 +25,7 @@ import { useDismissable } from '@/lib/use-dismissable'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { CoachIcon } from '@/components/icons/coach-icon'
 import { CoachMarkdown } from '@/features/coach/components/coach-markdown'
-import { CoachErrorText, showCoachStreamError, statusOf } from '@/features/coach/utils/stream-error-toast'
+import { CoachErrorText } from '@/features/coach/utils/stream-error-toast'
 import {
   CoachProposalCard,
   extractCoachProposals,
@@ -67,6 +67,12 @@ export function FloatingCoachPopover({ open, onClose }: FloatingCoachPopoverProp
       const res = await coachApi.getChatHistory(scopeKey)
       return res.data ?? []
     },
+    // Refetch each time the popover opens / the tab refocuses so a question
+    // sent earlier (persisted server-side) and any reply that finished while
+    // the popover was closed both show up instead of disappearing.
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    staleTime: 0,
   })
 
   const persistedMessages = useMemo<ChatMessageView[]>(() => {
@@ -190,7 +196,6 @@ export function FloatingCoachPopover({ open, onClose }: FloatingCoachPopoverProp
           // SSE bridge wraps backend throws (budget exceeded, key removed)
           // into a terminal {error, done:true} chunk, surface here.
           setError(streamErr)
-          showCoachStreamError(undefined, streamErr)
           setInput((cur) => cur || trimmed)
           setOptimistic((prev) => prev.filter((m) => m.id !== userMsgId))
         } else {
@@ -203,10 +208,12 @@ export function FloatingCoachPopover({ open, onClose }: FloatingCoachPopoverProp
           setOptimistic([])
         }
       } catch (err) {
-        if ((err as any)?.name !== 'AbortError') {
+        // Intentional Stop: skip the error UI. Check the signal directly rather
+        // than trusting err.name — Chrome surfaces a mid-stream abort as a
+        // DOMException "BodyStreamBuffer was aborted" whose name isn't AbortError.
+        if (!controller.signal.aborted && (err as any)?.name !== 'AbortError') {
           const m = err instanceof Error ? err.message : 'Chat failed'
           setError(m)
-          showCoachStreamError(statusOf(err), m)
           // Restore the user's input so they don't have to retype after a
           // budget/key/network failure, and drop the optimistic bubble.
           setInput((cur) => cur || trimmed)
@@ -353,7 +360,9 @@ export function FloatingCoachPopover({ open, onClose }: FloatingCoachPopoverProp
           onChange={(e) => setInput(e.target.value)}
           placeholder="Ask anything..."
           disabled={streaming}
-          className="h-9 flex-1 rounded-md border border-zinc-200 bg-white px-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#f2cc0d] focus:outline-none focus:ring-1 focus:ring-[#f2cc0d] disabled:opacity-50"
+          // min-w-0 so the field can shrink in the row; text-base (16px) on
+          // mobile stops iOS Safari zooming in on focus, text-sm from sm: up.
+          className="h-9 min-w-0 flex-1 rounded-md border border-zinc-200 bg-white px-2.5 text-base text-zinc-900 placeholder:text-zinc-400 focus:border-[#f2cc0d] focus:outline-none focus:ring-1 focus:ring-[#f2cc0d] disabled:opacity-50 sm:text-sm"
         />
         {streaming ? (
           <button
@@ -451,7 +460,8 @@ function PopoverMessageRow({
           {pending && (
             <div className="my-2 flex items-center gap-2 rounded-lg border border-[#f2cc0d]/40 bg-[#fffbea] px-2.5 py-1.5 text-[11px] text-[#8a7307]">
               <span className="inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-[#f2cc0d]" />
-              Coach is preparing a proposed change…
+              Coach is preparing a proposed change… a full week can take a little
+              longer.
             </div>
           )}
           {message.pending && !pending && (

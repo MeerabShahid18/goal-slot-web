@@ -614,6 +614,29 @@ export type CoachProposalActionType =
   | 'DELETE_TASK'
   | 'CREATE_PRACTICE'
 
+/**
+ * Runtime source-of-truth for the action types the API accepts. Kept in lockstep
+ * with the backend's COACH_ACTION_TYPES enum. Used to validate proposals the
+ * model emits so a hallucinated type (e.g. "ADD_SCHEDULE_BLOCK") can't slip
+ * through and 400 the whole apply batch.
+ */
+export const COACH_PROPOSAL_ACTION_TYPES: readonly CoachProposalActionType[] = [
+  'RENAME_GOAL',
+  'UPDATE_GOAL',
+  'CREATE_GOAL',
+  'DELETE_GOAL',
+  'CREATE_SCHEDULE_BLOCK',
+  'UPDATE_SCHEDULE_BLOCK',
+  'DELETE_SCHEDULE_BLOCK',
+  'CREATE_TIME_ENTRY',
+  'UPDATE_TIME_ENTRY',
+  'DELETE_TIME_ENTRY',
+  'CREATE_TASK',
+  'UPDATE_TASK',
+  'DELETE_TASK',
+  'CREATE_PRACTICE',
+]
+
 export interface CoachProposalAction {
   type: CoachProposalActionType
   id?: string
@@ -658,10 +681,22 @@ async function* parseCoachSseStream(
   try {
     while (true) {
       if (signal?.aborted) {
-        await reader.cancel()
+        await reader.cancel().catch(() => {})
         return
       }
-      const { value, done } = await reader.read()
+      let value: Uint8Array | undefined
+      let done = false
+      try {
+        ;({ value, done } = await reader.read())
+      } catch (err) {
+        // An in-flight read() rejects when the caller aborts the request
+        // mid-stream — Chrome throws a DOMException "BodyStreamBuffer was
+        // aborted". That's an intentional stop (user hit Stop, or the
+        // component unmounted), not a failure, so end the stream quietly
+        // instead of letting it bubble up and render as a chat error.
+        if (signal?.aborted) return
+        throw err
+      }
       if (done) break
       buffer += decoder.decode(value, { stream: true })
 
