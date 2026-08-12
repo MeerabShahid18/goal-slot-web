@@ -13,6 +13,7 @@ import { ViewGranularityTabs } from '@/features/reports/components/view-granular
 import type { FocusGranularity } from '@/features/reports/utils/types'
 import { AssignInstructionDialog } from '@/features/sharing/components/assign-instruction-dialog'
 import { SentInstructionsList } from '@/features/sharing/components/sent-instructions-list'
+import { StartConversationButton } from '@/features/messaging'
 import { SharedReportExport } from '@/features/sharing/components/shared-report-export'
 import { useMarkSharedReportViewedMutation } from '@/features/sharing/hooks/use-instructions-queries'
 import { useSharedUserGoalsQuery } from '@/features/sharing/hooks/use-sharing-queries'
@@ -108,26 +109,37 @@ export function SharedReportsView({ sharedWithMe }: SharedReportsViewProps) {
             <p className="font-mono text-xs text-gray-600 sm:text-sm">Select a person to view their focus reports</p>
           </div>
 
-          <Select value={selectedUserId || ''} onValueChange={(v) => setSelectedUserId(v)}>
-            <SelectTrigger className="h-12 w-full border border-zinc-200 bg-white py-2 sm:w-[300px]">
-              <SelectValue placeholder="Select a person" />
-            </SelectTrigger>
-            <SelectContent>
-              {sharedWithMe.map((share) => (
-                <SelectItem key={share.owner.id} value={share.owner.id}>
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-6 w-6 items-center justify-center border border-zinc-200 bg-primary text-xs font-bold">
-                      {share.owner.name?.[0]?.toUpperCase() || '?'}
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Select value={selectedUserId || ''} onValueChange={(v) => setSelectedUserId(v)}>
+              <SelectTrigger className="h-12 w-full border border-zinc-200 bg-white py-2 sm:w-[300px]">
+                <SelectValue placeholder="Select a person" />
+              </SelectTrigger>
+              <SelectContent>
+                {sharedWithMe.map((share) => (
+                  <SelectItem key={share.owner.id} value={share.owner.id}>
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-6 w-6 items-center justify-center border border-zinc-200 bg-primary text-xs font-bold">
+                        {share.owner.name?.[0]?.toUpperCase() || '?'}
+                      </div>
+                      <div className="flex flex-col items-start">
+                        <span className="font-bold">{share.owner.name}</span>
+                        <span className="font-mono text-xs text-gray-500">{share.owner.email}</span>
+                      </div>
                     </div>
-                    <div className="flex flex-col items-start">
-                      <span className="font-bold">{share.owner.name}</span>
-                      <span className="font-mono text-xs text-gray-500">{share.owner.email}</span>
-                    </div>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {selectedUser && (
+              <StartConversationButton
+                userId={selectedUser.id}
+                name={selectedUser.name || selectedUser.email}
+                size="default"
+                className="h-12 sm:h-12"
+              />
+            )}
+          </div>
         </div>
       </div>
 

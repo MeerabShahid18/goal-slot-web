@@ -1,3 +1,4 @@
+import { StartConversationButton } from '@/features/messaging'
 import { DataShare } from '@/features/sharing/utils/types'
 import { motion } from 'framer-motion'
 import { Trash2 } from 'lucide-react'
@@ -47,12 +48,26 @@ export function SharingShareCard({ share, onRevoke, isPending = false }: Sharing
         </div>
       </div>
 
-      <button
-        onClick={onRevoke}
-        className="group flex h-8 w-8 flex-shrink-0 items-center justify-center border border-zinc-200 transition-colors hover:border-red-500 hover:bg-red-50 sm:h-10 sm:w-10"
-      >
-        <Trash2 className="h-4 w-4 text-gray-600 group-hover:text-red-500 sm:h-5 sm:w-5" />
-      </button>
+      <div className="flex flex-shrink-0 items-center gap-2">
+        {/* Only accepted shares have a resolved user to message; pending
+            invites are still just an email address. */}
+        {share.sharedWith?.id && (
+          <StartConversationButton
+            userId={share.sharedWith.id}
+            name={share.sharedWith.name || share.email}
+            iconOnly
+            className="h-8 w-8 sm:h-10 sm:w-10"
+          />
+        )}
+
+        <button
+          onClick={onRevoke}
+          aria-label={`Revoke access for ${share.sharedWith?.name || share.email}`}
+          className="group flex h-8 w-8 flex-shrink-0 items-center justify-center border border-zinc-200 transition-colors hover:border-red-500 hover:bg-red-50 sm:h-10 sm:w-10"
+        >
+          <Trash2 className="h-4 w-4 text-gray-600 group-hover:text-red-500 sm:h-5 sm:w-5" />
+        </button>
+      </div>
     </motion.div>
   )
 }
