@@ -10,6 +10,8 @@ import {
   Plus,
   ShieldCheck,
   Sparkles,
+  Timer,
+  TimerOff,
   Trash2,
   XCircle,
 } from 'lucide-react'
@@ -47,6 +49,11 @@ const ACTION_META: Record<
   UPDATE_TASK: { label: 'Update task', verb: 'update', icon: Edit3 },
   DELETE_TASK: { label: 'Delete task', verb: 'delete', icon: Trash2 },
   CREATE_PRACTICE: { label: 'Add active practice', verb: 'create', icon: Sparkles },
+  // Neither of these is destructive: starting costs nothing, and stopping
+  // SAVES the elapsed time rather than throwing it away. Keeping them off the
+  // `delete` verb also keeps the card's "includes a delete" warning honest.
+  START_TIMER: { label: 'Start live timer', verb: 'create', icon: Timer },
+  STOP_TIMER: { label: 'Stop live timer', verb: 'update', icon: TimerOff },
 }
 
 // Verb pills share the dark brand pill so a proposal card doesn't read as
@@ -307,6 +314,57 @@ function describeAction(
       if (typeof p.duration === 'number') bits.push(`duration to ${formatDuration(p.duration)}`)
       if (typeof p.date === 'string') bits.push(`date to ${fmtDate(p.date)}`)
       return { subject, detail: bits.length ? `Change ${bits.join(', ')}.` : 'Update this entry.' }
+    }
+
+    case 'START_TIMER': {
+      // No duration here by design — START_TIMER drives the live stopwatch and
+      // nobody knows how long it runs until the user stops it. What matters at
+      // approval time is which goal it counts toward: Coach sends `goalId` when
+      // it can see the goal in context, or the raw words the user said as
+      // `goalName` for the API to resolve on apply.
+      const linkedGoalId = typeof p.goalId === 'string' ? p.goalId : undefined
+      const linkedGoal = linkedGoalId ? findGoal(queryClient, linkedGoalId) : undefined
+      const spokenGoal = typeof p.goalName === 'string' ? p.goalName.trim() : ''
+      const taskName = typeof p.taskName === 'string' ? p.taskName.trim() : ''
+      const goalLabel = linkedGoal?.title || spokenGoal || undefined
+
+      const name = taskName || goalLabel
+      const subject = name ? `"${name}"` : 'Untitled session'
+
+      const target = goalLabel
+        ? `counting toward "${goalLabel}"`
+        : linkedGoalId
+          ? 'counting toward a linked goal'
+          : "not linked to a goal, so the time won't count toward one"
+      const sentences = [`Starts the clock now, ${target}.`, 'It runs until you stop it.']
+      if (typeof p.notes === 'string' && p.notes.trim()) {
+        const notes = p.notes.trim()
+        sentences.push(`Note: ${notes.length > 60 ? `${notes.slice(0, 60)}...` : notes}`)
+      }
+      return { subject, detail: sentences.join(' ') }
+    }
+
+    case 'STOP_TIMER': {
+      // Every field is optional and present only to OVERRIDE what the running
+      // session already carries, so an empty payload is the normal case rather
+      // than missing data. The subject stays generic on purpose: which timer is
+      // running is server state we can't see from here, and naming an override
+      // as if it were the session would be a lie at approval time.
+      const linkedGoalId = typeof p.goalId === 'string' ? p.goalId : undefined
+      const linkedGoal = linkedGoalId ? findGoal(queryClient, linkedGoalId) : undefined
+      const spokenGoal = typeof p.goalName === 'string' ? p.goalName.trim() : ''
+      const taskName = typeof p.taskName === 'string' ? p.taskName.trim() : ''
+      const goalLabel = linkedGoal?.title || spokenGoal || undefined
+
+      const overrides: string[] = []
+      if (taskName) overrides.push(`name it "${taskName}"`)
+      if (goalLabel) overrides.push(`count it toward "${goalLabel}"`)
+      else if (linkedGoalId) overrides.push('count it toward a linked goal')
+      if (typeof p.notes === 'string' && p.notes.trim()) overrides.push('attach a note')
+
+      const sentences = ['Stops the running timer and saves the elapsed time as an entry.']
+      if (overrides.length) sentences.push(`Also ${overrides.join(', ')}.`)
+      return { subject: 'The running timer', detail: sentences.join(' ') }
     }
 
     case 'CREATE_TASK':
@@ -695,6 +753,15 @@ const ACTION_TYPE_SYNONYMS: Record<string, CoachProposalActionType> = {
   REMOVE_TIME_ENTRY: 'DELETE_TIME_ENTRY',
   ADD_PRACTICE: 'CREATE_PRACTICE',
   NEW_PRACTICE: 'CREATE_PRACTICE',
+  // The live stopwatch is the one action users reach for by voice ("start
+  // tracking my deen goal"), and dictated phrasing drifts further from the
+  // canonical name than typed phrasing does. An unmapped type is dropped
+  // silently, so the near-misses are worth spelling out.
+  START_TRACKING: 'START_TIMER',
+  BEGIN_TIMER: 'START_TIMER',
+  TRACK_TIME: 'START_TIMER',
+  STOP_TRACKING: 'STOP_TIMER',
+  END_TIMER: 'STOP_TIMER',
 }
 
 /**
