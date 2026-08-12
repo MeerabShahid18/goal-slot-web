@@ -16,6 +16,7 @@ import { TimerSettings } from '@/features/time-tracker/components/timer-settings
 import { useCreateTimeEntry } from '@/features/time-tracker/hooks/use-time-tracker-mutations'
 import { useTimeTrackerData } from '@/features/time-tracker/hooks/use-time-tracker-queries'
 import { useTimer } from '@/features/time-tracker/hooks/use-timer'
+import { resolveEntryTitle } from '@/features/time-tracker/utils/entry-title'
 import { findScheduleBlockForDateTime } from '@/features/time-tracker/utils/schedule'
 import {
   getCategoryFromGoal,
@@ -185,11 +186,23 @@ export function TimeTrackerPage() {
     }
   }
 
+  // Once a session is over, the schedule block is allowed to suggest again.
+  // Without this the flags stay latched for the rest of the page's life and
+  // the next session starts with no suggestions at all.
+  const clearManualOverrides = () => {
+    setManualGoal(false)
+    setManualCategory(false)
+    setManualSchedule(false)
+  }
+
   const handleCategoryChange = (category: string) => {
     setCategory(category)
     setManualCategory(true)
   }
 
+  // The goal is the primary attribution choice, so it fills in the category
+  // for you. The reverse never happens: a category must never decide which
+  // goals you are allowed to see or pick.
   const handleGoalChange = (goalId: string) => {
     setGoalId(goalId)
     setManualGoal(true)
@@ -200,13 +213,15 @@ export function TimeTrackerPage() {
         setManualCategory(true)
       }
     } else {
+      // Only drop the category we derived from that goal. What the user is
+      // working on is independent of attribution and must survive clearing.
       setCategory('')
       setManualCategory(true)
-      setTaskId('')
-      setTask('')
     }
   }
 
+
+  const hasAttribution = !!(currentTaskId || currentTask.trim() || currentGoalId || currentCategory)
 
   // Sort tasks - prioritize tasks matching current goal/category but show all tasks
   const orderedTasks = useMemo(
@@ -214,19 +229,12 @@ export function TimeTrackerPage() {
     [tasks, currentGoalId, currentCategory],
   )
 
-  const filteredGoals = useMemo(
-    () => goals.filter((goal: Goal) => (currentCategory ? goal.category === currentCategory : true)),
-    [goals, currentCategory],
-  )
-
   const startTimer = () => {
     const selectedTask = currentTaskId ? tasks.find((t: Task) => t.id === currentTaskId) : undefined
-    const selectedTaskTitle = currentTaskId ? selectedTask?.title : currentTask.trim()
-
-    if (!selectedTaskTitle) {
-      toast.error('Please select a task or enter a title')
-      return
-    }
+    // Everything here is optional. Starting with nothing filled in is the
+    // supported path — the session can be labelled and attributed while it
+    // runs, or in the stop dialog, or never.
+    const selectedTaskTitle = (currentTaskId ? selectedTask?.title : currentTask)?.trim() ?? ''
 
     setTask(selectedTaskTitle)
     setElapsedTime(0)
@@ -272,7 +280,7 @@ export function TimeTrackerPage() {
     taskId: string | null
   }) => {
     const duration = Math.max(1, Math.floor(elapsedTime / 60))
-    const resolvedTitle = taskTitle.trim() || currentTask || 'Untitled'
+    const resolvedTitle = resolveEntryTitle(taskTitle, currentTask)
 
     // Persist any goal / category / task override the user made in
     // the stop modal back to the timer state so the next session
@@ -298,6 +306,7 @@ export function TimeTrackerPage() {
           toast.success(`Logged ${formatDuration(duration)}!`)
           setElapsedTime(0)
           reset()
+          clearManualOverrides()
           setShowStopModal(false)
         },
       },
@@ -307,6 +316,7 @@ export function TimeTrackerPage() {
   const resetTimer = () => {
     setElapsedTime(0)
     reset()
+    clearManualOverrides()
   }
 
   return (
@@ -349,28 +359,10 @@ export function TimeTrackerPage() {
           />
         </div>
       <GlassCard className="timer-glow p-6 text-center sm:p-8 md:p-10">
-        {/* Hero timer first — eye lands on the digits, not the form.
-            The form sits in a compact, narrow column beneath. */}
+        {/* Hero timer, then the controls. Start is the primary action and it
+            works with nothing filled in — the form is deliberately below the
+            fold of the button so it never reads as a prerequisite. */}
         <TimerDisplay elapsedTime={elapsedTime} timerState={timerState} />
-        <TaskSelector
-          tasks={orderedTasks}
-          currentTaskId={currentTaskId}
-          currentTask={currentTask}
-          timerState={timerState}
-          onTaskIdChange={handleTaskChange}
-          onTaskTitleChange={setTask}
-          onCreateTask={handleCreateTask}
-          variant="light"
-        />
-        <TimerSettings
-          goals={filteredGoals}
-          currentCategory={currentCategory}
-          currentGoalId={currentGoalId}
-          timerState={timerState}
-          isTaskSelected={!!currentTaskId}
-          onCategoryChange={handleCategoryChange}
-          onGoalIdChange={handleGoalChange}
-        />
         <TimerControls
           timerState={timerState}
           isStopLoading={createEntry.isPending}
@@ -380,6 +372,35 @@ export function TimeTrackerPage() {
           onStop={stopTimer}
           onReset={resetTimer}
         />
+        {timerState === 'STOPPED' && !hasAttribution && (
+          <p className="mt-3 text-xs text-zinc-500">
+            No task, goal or category needed — start now and fill this in later.
+          </p>
+        )}
+
+        <div className="mx-auto mt-7 max-w-lg border-t border-zinc-200 pt-5 text-left">
+          <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+            {timerState === 'STOPPED' ? 'Details — all optional' : 'Attach to this session'}
+          </p>
+          <TaskSelector
+            tasks={orderedTasks}
+            currentTaskId={currentTaskId}
+            currentTask={currentTask}
+            onTaskIdChange={handleTaskChange}
+            onTaskTitleChange={setTask}
+            onCreateTask={handleCreateTask}
+            variant="light"
+          />
+          <TimerSettings
+            goals={goals}
+            currentCategory={currentCategory}
+            currentGoalId={currentGoalId}
+            timerState={timerState}
+            isTaskSelected={!!currentTaskId}
+            onCategoryChange={handleCategoryChange}
+            onGoalIdChange={handleGoalChange}
+          />
+        </div>
       </GlassCard>
       </div>
 
@@ -399,7 +420,7 @@ export function TimeTrackerPage() {
         isOpen={showStopModal}
         onClose={() => setShowStopModal(false)}
         onConfirm={handleStopConfirm}
-        taskName={currentTask || 'Untitled'}
+        taskName={currentTask}
         duration={Math.max(1, Math.floor(elapsedTime / 60))}
         isLoading={createEntry.isPending}
         goals={goals.map((g: Goal) => ({ id: g.id, title: g.title }))}
