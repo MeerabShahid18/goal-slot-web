@@ -444,8 +444,16 @@ function PopoverMessageRow({
     : { cleaned: message.content, proposals: [], pending: false }
 
   return (
-    <div className="group space-y-1">
-      <div className="flex items-center justify-between gap-2">
+    // Same left/right + accent-vs-neutral bubble pattern as the full Coach
+    // page (ChatMessageRow) and the messaging feature's MessageBubble, so a
+    // quick popover reply reads the same way as the full-page thread.
+    <div className={cn('group flex flex-col gap-1', isUser ? 'items-end' : 'items-start')}>
+      <div
+        className={cn(
+          'flex w-full max-w-[88%] items-center gap-2',
+          isUser ? 'justify-end' : 'justify-between',
+        )}
+      >
         <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-zinc-400">
           {isCoach ? 'Coach' : 'You'}
         </div>
@@ -462,7 +470,7 @@ function PopoverMessageRow({
         )}
       </div>
       {isCoach ? (
-        <div className="text-[13px] leading-relaxed text-zinc-900">
+        <div className="max-w-[88%] rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-[13px] leading-relaxed text-zinc-900">
           {cleaned && <CoachMarkdown content={cleaned} className="text-[13px]" />}
           {proposals.map((block, idx) => (
             <CoachProposalCard
@@ -485,7 +493,7 @@ function PopoverMessageRow({
       ) : (
         <div
           className={cn(
-            'whitespace-pre-wrap rounded-lg bg-zinc-100 px-2.5 py-1.5 text-[13px] leading-relaxed text-zinc-800',
+            'max-w-[88%] whitespace-pre-wrap rounded-lg border border-[#f2cc0d]/40 bg-[#fffbea] px-2.5 py-1.5 text-[13px] leading-relaxed text-zinc-900',
           )}
         >
           {message.content}
