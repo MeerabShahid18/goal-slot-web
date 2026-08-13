@@ -16,6 +16,7 @@ import {
   LayoutDashboard,
   Megaphone,
   MessageSquare,
+  MessagesSquare,
   Play,
   Search,
   Share2,
@@ -29,6 +30,7 @@ import { CoachIcon } from '@/components/icons/coach-icon'
 import { FeatherPenIcon } from '@/components/icons/feather-pen-icon'
 import { NotebookIcon } from '@/components/icons/notebook-icon'
 import { useGoalsQuery } from '@/features/goals/hooks/use-goals-queries'
+import { isMessagingConfigured } from '@/features/messaging/utils/config'
 import { useTasksQuery } from '@/features/tasks/hooks/use-tasks-queries'
 import type { Task } from '@/features/time-tracker/utils/types'
 import type { Goal } from '@/features/goals/utils/types'
@@ -98,6 +100,10 @@ const PAGE_ITEMS: PaletteItem[] = [
   { id: 'page-reports',    label: 'Reports',        icon: BarChart3,       href: '/dashboard/reports',         group: 'Pages', keywords: 'analytics stats' },
   { id: 'page-export',     label: 'Export Reports', icon: Download,        href: '/dashboard/reports/export',  group: 'Pages', keywords: 'csv download' },
   { id: 'page-sharing',    label: 'Sharing',        icon: Share2,          href: '/dashboard/sharing',         group: 'Pages', keywords: 'public share' },
+  // Only reachable when a messaging service is configured for the deployment.
+  ...(isMessagingConfigured
+    ? [{ id: 'page-messages', label: 'Messages', icon: MessagesSquare, href: '/dashboard/messages', group: 'Pages' as const, keywords: 'chat dm mentor mentee conversation' }]
+    : []),
 ]
 
 const ADMIN_ITEMS: PaletteItem[] = [

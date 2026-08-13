@@ -15,6 +15,7 @@ import {
   LayoutGrid,
   Megaphone,
   MessageSquare,
+  MessagesSquare,
   Share2,
   Shield,
   Flag,
@@ -30,6 +31,7 @@ import { NotebookIcon } from '@/components/icons/notebook-icon'
 import { useAuthStore, useIsAdmin } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { useCoachInsights } from '@/features/coach/hooks/use-coach-insights'
+import { isMessagingConfigured } from '@/features/messaging/utils/config'
 import { Badge } from '@/components/ui/badge'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
@@ -68,6 +70,9 @@ const navItems = [
   { href: '/dashboard/reports', label: 'Reports', icon: BarChart3 },
   { href: '/dashboard/reports/export', label: 'Export Reports', icon: Download },
   { href: '/dashboard/sharing', label: 'Sharing', icon: Share2 },
+  // Messaging only exists when a messaging service is configured for the
+  // deployment; without it the nav entry stays out of the list entirely.
+  ...(isMessagingConfigured ? [{ href: '/dashboard/messages', label: 'Messages', icon: MessagesSquare }] : []),
   { href: '/dashboard/library', label: 'Library', icon: BookOpen },
 ]
 

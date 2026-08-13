@@ -104,7 +104,7 @@ export function DraggableBlock({ block, top, height, isActiveDrag, onEdit, onVie
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: isActiveDrag ? 0 : 1, scale: isActiveDrag ? 1 : 1 }}
       transition={{ type: 'spring', stiffness: 500, damping: 40 }}
-      className={`group absolute left-1 right-1 cursor-grab overflow-hidden rounded-md border border-l-4 shadow-sm data-[flash=true]:!ring-2 data-[flash=true]:!ring-[#f2cc0d] data-[flash=true]:!ring-offset-2 ${
+      className={`group absolute left-1 right-1 cursor-grab overflow-hidden rounded-md border border-l-4 border-zinc-300 shadow-sm data-[flash=true]:!ring-2 data-[flash=true]:!ring-[#f2cc0d] data-[flash=true]:!ring-offset-2 ${
         isTiny ? 'px-1.5 py-0' : isCompact ? 'px-2 py-1' : 'p-2'
       }`}
       data-block

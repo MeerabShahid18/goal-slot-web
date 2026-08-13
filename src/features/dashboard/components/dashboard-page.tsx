@@ -9,6 +9,7 @@ import { DashboardRecentActivity } from '@/features/dashboard/components/dashboa
 import { DashboardScheduleCTA } from '@/features/dashboard/components/dashboard-schedule-cta'
 import { DashboardStats } from '@/features/dashboard/components/dashboard-stats'
 import { useDashboardData } from '@/features/dashboard/hooks/use-dashboard-queries'
+import { ReceivedInstructionsCard } from '@/features/instructions/components/received-instructions-card'
 
 import { Loading } from '@/components/ui/loading'
 import { PageShell } from '@/components/ui/page-shell'
@@ -30,6 +31,8 @@ export function DashboardPage() {
       <DailyCheckinCard />
 
       <ActivePracticeReminders />
+
+      <ReceivedInstructionsCard />
 
       <DashboardHeader />
 
