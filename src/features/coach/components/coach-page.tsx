@@ -396,8 +396,18 @@ function ChatMessageRow({
 
   const isUser = message.role === 'USER'
   return (
-    <div className="group space-y-1">
-      <div className="flex items-center justify-between gap-2">
+    // Chat bubbles follow the same left/right + accent-vs-neutral pattern as
+    // the messaging feature's MessageBubble (src/features/messaging/components/
+    // message-bubble.tsx): own messages sit right-aligned on a brand-yellow
+    // tint, the other party's sit left-aligned on a neutral card. Keeps the
+    // Coach thread scannable instead of two stacks of identical plain text.
+    <div className={cn('group flex flex-col gap-1', isUser ? 'items-end' : 'items-start')}>
+      <div
+        className={cn(
+          'flex w-full max-w-[92%] items-center gap-2 px-1 sm:max-w-[75%]',
+          isUser ? 'justify-end' : 'justify-between',
+        )}
+      >
         <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-zinc-400">
           {isUser ? 'You' : 'Coach'}
         </span>
@@ -435,7 +445,7 @@ function ChatMessageRow({
         (() => {
           const { cleaned, proposals, pending } = extractCoachProposals(message.content || '')
           return (
-            <div className="text-[15px] leading-relaxed text-zinc-900">
+            <div className="max-w-[92%] rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-[15px] leading-relaxed text-zinc-900 sm:max-w-[75%]">
               {cleaned && <CoachMarkdown content={cleaned} />}
               {proposals.map((block, idx) => (
                 <CoachProposalCard
@@ -458,7 +468,7 @@ function ChatMessageRow({
           )
         })()
       ) : (
-        <div className="whitespace-pre-wrap text-[15px] leading-relaxed text-zinc-700">
+        <div className="max-w-[92%] whitespace-pre-wrap rounded-xl border border-[#f2cc0d]/40 bg-[#fffbea] px-3 py-2 text-[15px] leading-relaxed text-zinc-900 sm:max-w-[75%]">
           {message.content}
         </div>
       )}
