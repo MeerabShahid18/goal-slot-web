@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 
+import Link from 'next/link'
+
 import { UNTITLED_ENTRY_TITLE } from '@/features/time-tracker/utils/entry-title'
-import { CheckCircle, Clock } from 'lucide-react'
+import { AlertTriangle, CheckCircle, Clock, Crown } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -40,6 +42,12 @@ interface StopTimerModalProps {
   defaultGoalId: string
   defaultCategory: string
   defaultTaskId: string
+  /** Set when the last save attempt failed specifically because of the
+      free-plan daily entry cap. The session's elapsed time is still intact
+      (this modal doesn't stop the timer) — the banner exists to make that
+      failure and its fix (upgrade or wait) obvious instead of relying on a
+      toast the user may not connect to "why didn't Save do anything". */
+  planLimitMessage?: string | null
 }
 
 export function StopTimerModal({
@@ -55,6 +63,7 @@ export function StopTimerModal({
   defaultGoalId,
   defaultCategory,
   defaultTaskId,
+  planLimitMessage,
 }: StopTimerModalProps) {
   const [notes, setNotes] = useState('')
   const [goalId, setGoalId] = useState(defaultGoalId)
@@ -106,6 +115,21 @@ export function StopTimerModal({
             Session complete
           </DialogTitle>
         </DialogHeader>
+
+        {planLimitMessage && (
+          <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+            <div className="flex-1">
+              <p className="text-xs leading-relaxed text-zinc-700">{planLimitMessage}</p>
+              <Button asChild variant="brand" size="sm" className="mt-2 h-7 text-xs">
+                <Link href="/dashboard/settings#billing">
+                  <Crown className="h-3 w-3" />
+                  Upgrade Plan
+                </Link>
+              </Button>
+            </div>
+          </div>
+        )}
 
         <form id="stop-timer-form" onSubmit={handleSubmit} className="space-y-3">
           {/* Duration summary — taskName lives inline above so the

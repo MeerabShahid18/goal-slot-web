@@ -24,6 +24,13 @@ function hasResponse(err: unknown): boolean {
   return Boolean((err as { response?: unknown })?.response)
 }
 
+// A mutation's error toast is usually a fixed string, but some failures
+// (e.g. a plan-limit 403) need copy that's specific to what the server
+// actually rejected. Supporting a resolver here keeps that logic in one
+// place (next to rollback/invalidation) instead of duplicated at every
+// call site that wants a non-generic message.
+export type MutationErrorMessage = string | { message: string; duration?: number }
+
 export interface OfflineMutationConfig<TVars, TContext, TResult = unknown> {
   kind: string
   buildPayload: (vars: TVars, meta: OfflineMeta) => unknown
@@ -31,7 +38,7 @@ export interface OfflineMutationConfig<TVars, TContext, TResult = unknown> {
   getQueuedResult?: (vars: TVars, meta: OfflineMeta, payload: unknown) => TResult
   rollback?: (context: TContext | undefined) => void
   invalidateKeys?: QueryKey[]
-  messages?: { offline?: string; success?: string; error?: string }
+  messages?: { offline?: string; success?: string; error?: string | ((err: unknown) => MutationErrorMessage) }
 }
 
 interface InternalVars<TVars> {
@@ -91,9 +98,13 @@ export function useOfflineMutation<TVars, TContext = unknown, TResult = unknown>
         toast.success(config.messages.success)
       }
     },
-    onError: (_err, _vars, context) => {
+    onError: (err, _vars, context) => {
       config.rollback?.(context)
-      toast.error(config.messages?.error ?? 'Something went wrong')
+      const resolved =
+        typeof config.messages?.error === 'function' ? config.messages.error(err) : config.messages?.error
+      const text = (typeof resolved === 'object' && resolved !== null ? resolved.message : resolved) ?? 'Something went wrong'
+      const duration = typeof resolved === 'object' && resolved !== null ? resolved.duration : undefined
+      toast.error(text, duration !== undefined ? { duration } : undefined)
     },
   })
 

@@ -13,7 +13,11 @@ import { TaskSelector } from '@/features/time-tracker/components/task-selector'
 import { TimerControls } from '@/features/time-tracker/components/timer-controls'
 import { TimerDisplay } from '@/features/time-tracker/components/timer-display'
 import { TimerSettings } from '@/features/time-tracker/components/timer-settings'
-import { useCreateTimeEntry } from '@/features/time-tracker/hooks/use-time-tracker-mutations'
+import {
+  isPlanLimitError,
+  PLAN_LIMIT_MESSAGE,
+  useCreateTimeEntry,
+} from '@/features/time-tracker/hooks/use-time-tracker-mutations'
 import { useTimeTrackerData } from '@/features/time-tracker/hooks/use-time-tracker-queries'
 import { useTimer } from '@/features/time-tracker/hooks/use-timer'
 import { resolveEntryTitle } from '@/features/time-tracker/utils/entry-title'
@@ -29,6 +33,7 @@ import { Plus } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 
 import { tasksApi } from '@/lib/api'
+import { useAuthStore } from '@/lib/store'
 import { formatDuration, getLocalDateString } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { GlassCard } from '@/components/ui/glass-card'
@@ -62,11 +67,18 @@ export function TimeTrackerPage() {
   const createEntry = useCreateTimeEntry()
   const updateTask = useUpdateTaskMutation()
   const queryClient = useQueryClient()
+  const { user } = useAuthStore()
   const [showManualEntry, setShowManualEntry] = useState(false)
   const [showStopModal, setShowStopModal] = useState(false)
   const [manualCategory, setManualCategory] = useState(false)
   const [manualGoal, setManualGoal] = useState(false)
   const [manualSchedule, setManualSchedule] = useState(false)
+  // Set only when the last save attempt failed because of the free-plan
+  // daily entry cap. Surfaced as a persistent banner in the stop modal
+  // (see stopTimer / handleStopConfirm below) instead of a toast alone,
+  // since a toast can come and go while the user is still looking at the
+  // modal wondering why "Save entry" didn't do anything.
+  const [planLimitMessage, setPlanLimitMessage] = useState<string | null>(null)
 
   // Open the Manual Entry modal directly when the user clicked "+ Log time"
   // from the persistent header shortcut (which navigates here with ?action=manual).
@@ -223,6 +235,21 @@ export function TimeTrackerPage() {
 
   const hasAttribution = !!(currentTaskId || currentTask.trim() || currentGoalId || currentCategory)
 
+  // Soft warning shown before starting a session that likely can't be saved:
+  // FREE plan is capped at maxTasksPerDay (3) entries/day server-side (see
+  // dw-time-api's checkPlanLimit). This mirrors that check client-side using
+  // data already on hand (no extra request) so the user finds out before
+  // investing time in a session, not after — the actual save-time failure is
+  // still handled below regardless, since this count is a same-day estimate
+  // from the last 7 days of entries, not a live read of the server's count.
+  const maxTasksPerDay = user?.limits?.maxTasksPerDay ?? 3
+  const isDailyLimitUnlimited = !user || user.plan !== 'FREE' || user.unlimitedAccess || user.userType === 'INTERNAL'
+  const todayDateString = getLocalDateString()
+  const todayEntryCount = recentEntries.filter(
+    (e: { date: string }) => (e.date || '').split('T')[0] === todayDateString,
+  ).length
+  const hasReachedDailyLimit = !isDailyLimitUnlimited && todayEntryCount >= maxTasksPerDay
+
   // Sort tasks - prioritize tasks matching current goal/category but show all tasks
   const orderedTasks = useMemo(
     () => sortTasksBySelection(tasks, currentGoalId || undefined, currentCategory || undefined),
@@ -263,6 +290,7 @@ export function TimeTrackerPage() {
   }
 
   const stopTimer = async () => {
+    setPlanLimitMessage(null)
     setShowStopModal(true)
   }
 
@@ -289,6 +317,14 @@ export function TimeTrackerPage() {
     if (category !== currentCategory) setCategory(category)
     if ((taskId ?? '') !== currentTaskId) setTaskId(taskId ?? '')
 
+    // Retrying (the user hitting "Save entry" again after a failure) re-runs
+    // this same function, which recomputes `duration` from the live
+    // `elapsedTime` above — the timer is never paused or reset on failure,
+    // so a retry always saves against the real, still-running elapsed time,
+    // never a stale or dropped one. Clear any previous plan-limit banner up
+    // front so a retry doesn't show old and new state at once.
+    setPlanLimitMessage(null)
+
     createEntry.mutate(
       {
         taskName: resolvedTitle,
@@ -308,6 +344,16 @@ export function TimeTrackerPage() {
           reset()
           clearManualOverrides()
           setShowStopModal(false)
+          setPlanLimitMessage(null)
+        },
+        // Deliberately no local timer reset here. The generic failure toast
+        // is still shown by useCreateTimeEntry's own onError handler; this
+        // just adds the specific, actionable copy for the one failure mode
+        // that has a fix the user can act on (upgrade or wait). Any other
+        // failure leaves planLimitMessage null and the modal shows nothing
+        // beyond that generic toast, same as before this fix.
+        onError: (err) => {
+          setPlanLimitMessage(isPlanLimitError(err) ? PLAN_LIMIT_MESSAGE : null)
         },
       },
     )
@@ -377,6 +423,12 @@ export function TimeTrackerPage() {
             No task, goal or category needed — start now and fill this in later.
           </p>
         )}
+        {timerState === 'STOPPED' && hasReachedDailyLimit && (
+          <p className="mt-3 text-xs font-medium text-amber-700">
+            You&apos;ve already logged {maxTasksPerDay} sessions today, the free plan&apos;s daily limit. You can
+            still start this timer, but saving it will fail until you upgrade or the day rolls over.
+          </p>
+        )}
 
         <div className="mx-auto mt-7 max-w-lg border-t border-zinc-200 pt-5 text-left">
           <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
@@ -418,7 +470,10 @@ export function TimeTrackerPage() {
 
       <StopTimerModal
         isOpen={showStopModal}
-        onClose={() => setShowStopModal(false)}
+        onClose={() => {
+          setShowStopModal(false)
+          setPlanLimitMessage(null)
+        }}
         onConfirm={handleStopConfirm}
         taskName={currentTask}
         duration={Math.max(1, Math.floor(elapsedTime / 60))}
@@ -429,6 +484,7 @@ export function TimeTrackerPage() {
         defaultGoalId={currentGoalId}
         defaultCategory={currentCategory}
         defaultTaskId={currentTaskId}
+        planLimitMessage={planLimitMessage}
       />
     </PageShell>
   )
