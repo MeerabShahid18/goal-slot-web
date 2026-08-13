@@ -338,6 +338,14 @@ export const sharingApi = {
   getPublicSharedGoals: (token: string) => api.get(`/public/share/view/${token}/goals`),
 }
 
+// Messaging handshake. GoalSlot mints the short-lived token for the
+// jiffy-messaging service and owns the "may these two talk?" decision;
+// everything after that goes straight to the messaging service.
+export const messagingApi = {
+  token: () => api.post('/messaging/token'),
+  createConversation: (userId: string) => api.post('/messaging/conversations', { userId }),
+}
+
 export const notificationsApi = {
   list: (params?: { cursor?: string; limit?: number }) => api.get('/notifications', { params }),
   markRead: (id: string) => api.patch(`/notifications/${id}/read`),
