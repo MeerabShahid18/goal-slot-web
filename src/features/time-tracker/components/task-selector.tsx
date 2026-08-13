@@ -9,7 +9,9 @@ interface TaskSelectorProps {
   tasks: Task[]
   currentTaskId: string
   currentTask: string
-  timerState: 'STOPPED' | 'RUNNING' | 'PAUSED'
+  /** Editing stays open while a timer runs so a session started with nothing
+      can be labelled mid-flight. Only pass this to lock the field for real. */
+  disabled?: boolean
   onTaskIdChange: (id: string) => void
   onTaskTitleChange: (title: string) => void
   onCreateTask?: (title: string) => Promise<Task | null>
@@ -20,7 +22,7 @@ export function TaskSelector({
   tasks,
   currentTaskId,
   currentTask,
-  timerState,
+  disabled = false,
   onTaskIdChange,
   onTaskTitleChange,
   onCreateTask,
@@ -122,7 +124,7 @@ export function TaskSelector({
     if (!isOpen) setIsOpen(true)
   }
 
-  const isDisabled = timerState === 'RUNNING'
+  const isDisabled = disabled
 
   return (
     <div className="relative mx-auto mb-4 max-w-lg text-left" ref={dropdownRef}>

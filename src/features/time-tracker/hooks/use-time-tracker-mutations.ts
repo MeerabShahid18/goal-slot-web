@@ -18,6 +18,22 @@ const invalidateKeys = [
   focusQueries.all,
 ]
 
+// FREE-plan users are capped at 3 time entries/day (see dw-time-api's
+// plan-limits.ts + TimeEntriesService.create -> AuthService.checkPlanLimit).
+// POST /time-entries is guarded by JwtAuthGuard only, so the daily cap is the
+// sole source of a 403 on this endpoint — any 403 here is that cap. We still
+// sanity-check the message so a future unrelated 403 on this route degrades
+// to the generic error instead of showing this specific (and wrong) copy.
+export function isPlanLimitError(err: unknown): boolean {
+  const response = (err as { response?: { status?: number; data?: { message?: string } } })?.response
+  if (response?.status !== 403) return false
+  const message = response.data?.message
+  return typeof message === 'string' && /plan limit/i.test(message)
+}
+
+export const PLAN_LIMIT_MESSAGE =
+  "You've reached today's free-plan limit of 3 tracked sessions. This session is still running — upgrade to save it, or come back after midnight."
+
 const optimisticEntry = (id: string, payload: CreateTimeEntryPayload): TimeEntry => ({
   id,
   taskName: payload.taskName,
@@ -49,7 +65,8 @@ export function useCreateTimeEntry() {
     messages: {
       offline: 'Time entry saved offline',
       success: 'Time entry saved!',
-      error: 'Failed to save entry',
+      error: (err) =>
+        isPlanLimitError(err) ? { message: PLAN_LIMIT_MESSAGE, duration: 10000 } : 'Failed to save entry',
     },
   })
 }

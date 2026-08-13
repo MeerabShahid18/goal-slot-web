@@ -81,6 +81,10 @@ export const useTimerStore = create<TimerStoreState>()(
           pausedElapsedTime: 0,
           currentTask: '',
           currentTaskId: '',
+          // Category is cleared alongside the goal it was derived from.
+          // Leaving it behind silently pre-attributed the next session to
+          // whatever the last one happened to be.
+          currentCategory: '',
           currentGoalId: '',
           currentScheduleBlockId: '',
         }),

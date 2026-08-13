@@ -6,7 +6,7 @@ import { useCreateTimeEntry } from '@/features/time-tracker/hooks/use-time-track
 import { TaskSelector } from '@/features/time-tracker/components/task-selector'
 import { buildLocalDateFromParts, findScheduleBlockForDateTime } from '@/features/time-tracker/utils/schedule'
 
-import { getCategoryFromGoal, getGoalIdFromCategory, sortTasksBySelection } from '@/features/time-tracker/utils/selection-helpers'
+import { getCategoryFromGoal, sortTasksBySelection } from '@/features/time-tracker/utils/selection-helpers'
 import { Goal, Task } from '@/features/time-tracker/utils/types'
 import { WeekSchedule } from '@/features/schedule/utils/types'
 import { useQueryClient } from '@tanstack/react-query'
@@ -187,7 +187,6 @@ export function ManualEntryModal({ isOpen, onClose, goals, tasks, weeklySchedule
             tasks={orderedTasks}
             currentTaskId={taskId}
             currentTask={title}
-            timerState="STOPPED"
             onTaskIdChange={handleTaskIdChange}
             onTaskTitleChange={setTitle}
             onCreateTask={handleCreateTask}
@@ -257,28 +256,10 @@ export function ManualEntryModal({ isOpen, onClose, goals, tasks, weeklySchedule
             />
           </div>
 
-          <div>
-            <Label className="mb-1.5 flex items-center gap-2 text-[10px] tracking-wider">
-              Category
-              {taskId && <span className="text-[10px] font-normal normal-case tracking-normal text-zinc-400">(from task)</span>}
-            </Label>
-            <SearchableSelect
-              value={category}
-              onChange={(value) => {
-                if (taskId) return
-                setUserOverride(true)
-                setCategory(value)
-                const linkedGoal = getGoalIdFromCategory(value, goals)
-                if (linkedGoal) setGoalId(linkedGoal)
-                // Intentionally do NOT auto-pick a task, let the user choose
-                // from the (possibly multiple) DOING tasks for the goal.
-              }}
-              disabled={!!taskId}
-              options={categoryOptions}
-              placeholder="Select category"
-            />
-          </div>
-
+          {/* Goal above Category, same as the tracker card: the goal is the
+              real choice and it fills the category in. Category never picks a
+              goal for you — that used to silently grab whichever goal happened
+              to be first in the category. */}
           <div>
             <Label className="mb-1.5 flex items-center gap-2 text-[10px] tracking-wider">
               Link to Goal
@@ -301,6 +282,27 @@ export function ManualEntryModal({ isOpen, onClose, goals, tasks, weeklySchedule
               disabled={!!taskId}
               options={goalOptions}
               placeholder="Select goal"
+              emptyMessage="No goals yet — create one from the Goals page."
+              emptyHint={`Searched all ${goals.length} ${goals.length === 1 ? 'goal' : 'goals'}.`}
+            />
+          </div>
+
+          <div>
+            <Label className="mb-1.5 flex items-center gap-2 text-[10px] tracking-wider">
+              Category
+              {taskId && <span className="text-[10px] font-normal normal-case tracking-normal text-zinc-400">(from task)</span>}
+            </Label>
+            <SearchableSelect
+              value={category}
+              onChange={(value) => {
+                if (taskId) return
+                setUserOverride(true)
+                setCategory(value)
+              }}
+              disabled={!!taskId}
+              options={categoryOptions}
+              placeholder="Select category"
+              emptyMessage="No categories yet — add one in Settings."
             />
           </div>
         </form>
