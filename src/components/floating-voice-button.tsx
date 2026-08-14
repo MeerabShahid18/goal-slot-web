@@ -137,6 +137,7 @@ function FloatingVoiceButtonInner() {
 
       <button
         ref={buttonRef}
+        id="floating-voice-trigger"
         type="button"
         onClick={handleClick}
         aria-label={label}
