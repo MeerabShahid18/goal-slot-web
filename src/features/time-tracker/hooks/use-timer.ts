@@ -1,26 +1,101 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'react-hot-toast'
+
+import { activeTimerApi } from '@/lib/api'
 import { useTimerStore } from '@/lib/use-timer-store'
 
+const ACTIVE_SESSION_QUERY_KEY = ['timer', 'session', 'active'] as const
+// Short enough that a session started in one browser shows up in another
+// without the user having to reload; long enough not to hammer the API
+// while a tab just sits open on this page.
+const POLL_MS = 20_000
+
+/**
+ * The local Zustand store only ever knows about a timer started in *this*
+ * browser — it's plain localStorage, nothing crosses origins/browsers. The
+ * backend's `/timer/session` is the actual cross-device source of truth
+ * (dw-time-api's ActiveTimerController; the mobile app already treats it
+ * this way). This hook layers that in: whenever the server reports a
+ * session, its state wins over whatever the local store happens to say, so
+ * a second browser reflects a timer started in the first one instead of
+ * offering "Start tracking" over a session that's already running.
+ */
 export function useTimer() {
+  const queryClient = useQueryClient()
   const {
-    timerState,
-    startTimestamp,
-    pausedElapsedTime,
-    currentTask,
-    currentTaskId,
+    timerState: localTimerState,
+    startTimestamp: localStartTimestamp,
+    pausedElapsedTime: localPausedElapsedTime,
+    currentTask: localCurrentTask,
+    currentTaskId: localCurrentTaskId,
     currentCategory,
-    currentGoalId,
-    currentScheduleBlockId,
+    currentGoalId: localCurrentGoalId,
+    currentScheduleBlockId: localCurrentScheduleBlockId,
     setTask,
     setTaskId,
     setCategory,
     setGoalId,
     setScheduleBlockId,
-    start,
-    pause,
-    resume,
-    reset,
+    start: localStart,
+    pause: localPause,
+    resume: localResume,
+    reset: localReset,
   } = useTimerStore()
+
+  const activeSessionQuery = useQuery({
+    queryKey: ACTIVE_SESSION_QUERY_KEY,
+    queryFn: async () => (await activeTimerApi.getActive()).data,
+    staleTime: 10_000,
+    refetchInterval: POLL_MS,
+    refetchOnWindowFocus: true,
+  })
+
+  // Belt-and-braces for `refetchOnWindowFocus`: a background tab coming back
+  // via `visibilitychange` doesn't always fire a `focus` event first.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        void queryClient.invalidateQueries({ queryKey: ACTIVE_SESSION_QUERY_KEY })
+      }
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [queryClient])
+
+  const serverSession = activeSessionQuery.data ?? null
+  const hasServerSession = serverSession !== null
+
+  const invalidateSession = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ACTIVE_SESSION_QUERY_KEY }),
+    [queryClient],
+  )
+
+  // Server, when present, is authoritative — same rule the mobile client
+  // already follows. Everything below is the local Zustand shape, just
+  // sourced from whichever side actually knows what's running.
+  const effectiveTimerState = hasServerSession
+    ? serverSession.status === 'RUNNING'
+      ? 'RUNNING'
+      : 'PAUSED'
+    : localTimerState
+  const effectiveStartTimestamp = hasServerSession
+    ? serverSession.status === 'RUNNING' && serverSession.segmentStartedAt
+      ? new Date(serverSession.segmentStartedAt).getTime()
+      : null
+    : localStartTimestamp
+  // accumulatedMs is milliseconds; the local store's pausedElapsedTime is
+  // seconds — this is the one place that unit boundary gets crossed.
+  const effectivePausedElapsedTime = hasServerSession
+    ? Math.floor((serverSession.accumulatedMs ?? 0) / 1000)
+    : localPausedElapsedTime
+  const effectiveCurrentTask = hasServerSession ? (serverSession.taskName ?? '') : localCurrentTask
+  const effectiveCurrentTaskId = hasServerSession ? (serverSession.taskId ?? '') : localCurrentTaskId
+  const effectiveCurrentGoalId = hasServerSession ? (serverSession.goalId ?? '') : localCurrentGoalId
+  const effectiveCurrentScheduleBlockId = hasServerSession
+    ? (serverSession.scheduleBlockId ?? '')
+    : localCurrentScheduleBlockId
 
   const [elapsedTime, setElapsedTime] = useState(0)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -31,29 +106,105 @@ export function useTimer() {
       timerRef.current = null
     }
 
-    if (timerState === 'RUNNING' && startTimestamp) {
+    if (effectiveTimerState === 'RUNNING' && effectiveStartTimestamp) {
       const updateElapsed = () =>
-        setElapsedTime(Math.floor((Date.now() - startTimestamp) / 1000) + pausedElapsedTime)
+        setElapsedTime(Math.floor((Date.now() - effectiveStartTimestamp) / 1000) + effectivePausedElapsedTime)
 
       updateElapsed()
       timerRef.current = setInterval(updateElapsed, 1000)
     } else {
-      setElapsedTime(pausedElapsedTime)
+      setElapsedTime(effectivePausedElapsedTime)
     }
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current)
     }
-  }, [timerState, startTimestamp, pausedElapsedTime])
+  }, [effectiveTimerState, effectiveStartTimestamp, effectivePausedElapsedTime])
+
+  const start = useCallback(
+    (
+      task: string,
+      taskId: string,
+      category: string,
+      goalId: string,
+      scheduleBlockId?: string,
+      // Set by useStartTimerWithConfirmation once the user has explicitly
+      // chosen to save-and-switch or discard-and-continue over an already
+      // running session — the server would otherwise 409 on exactly the
+      // session that confirmation dialog just resolved.
+      takeOver?: boolean,
+    ) => {
+      // Optimistic: the button should feel instant in the browser that
+      // pressed it, same as before this hook talked to the server at all.
+      localStart(task, taskId, category, goalId, scheduleBlockId)
+      activeTimerApi
+        .start({
+          taskName: task || undefined,
+          taskId: taskId || undefined,
+          goalId: goalId || undefined,
+          scheduleBlockId: scheduleBlockId || undefined,
+          client: 'web',
+          takeOver,
+        })
+        .catch((err) => {
+          // 409 without takeOver: something is already running — most
+          // likely this same account starting a session in two places
+          // within the same instant. The server's row won; drop the local
+          // optimistic one rather than let this browser show a second,
+          // fictitious timer.
+          if (err?.response?.status === 409) {
+            localReset()
+            toast.error('A session was already running — showing that one instead.')
+          }
+        })
+        .finally(() => void invalidateSession())
+    },
+    [localStart, localReset, invalidateSession],
+  )
+
+  const pause = useCallback(
+    (elapsedSeconds: number) => {
+      localPause(elapsedSeconds)
+      activeTimerApi
+        .pause()
+        .catch(() => {
+          // Best-effort: local state already reflects "paused" for this
+          // browser regardless, and the next poll reconciles either way.
+        })
+        .finally(() => void invalidateSession())
+    },
+    [localPause, invalidateSession],
+  )
+
+  const resume = useCallback(() => {
+    localResume()
+    activeTimerApi
+      .resume()
+      .catch(() => {})
+      .finally(() => void invalidateSession())
+  }, [localResume, invalidateSession])
+
+  const reset = useCallback(() => {
+    localReset()
+    // Fires on both an actual Stop (after the time entry is already saved)
+    // and a plain Reset/discard — either way the local session is done with,
+    // so clear the server-side marker too. Best-effort: a failure here just
+    // leaves a stale row for the next stale-session check to surface, not a
+    // lost time entry (that was already written before this runs).
+    activeTimerApi
+      .discard()
+      .catch(() => {})
+      .finally(() => void invalidateSession())
+  }, [localReset, invalidateSession])
 
   return {
-    timerState,
+    timerState: effectiveTimerState,
     elapsedTime,
-    currentTask,
-    currentTaskId,
+    currentTask: effectiveCurrentTask,
+    currentTaskId: effectiveCurrentTaskId,
     currentCategory,
-    currentGoalId,
-    currentScheduleBlockId,
+    currentGoalId: effectiveCurrentGoalId,
+    currentScheduleBlockId: effectiveCurrentScheduleBlockId,
     setTask,
     setTaskId,
     setCategory,
@@ -64,6 +215,6 @@ export function useTimer() {
     resume,
     reset,
     setElapsedTime, // Exposed for reset logic if needed, though reset() handles store
-    startTimestamp,
+    startTimestamp: effectiveStartTimestamp,
   }
 }
