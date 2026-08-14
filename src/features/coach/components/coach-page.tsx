@@ -24,6 +24,7 @@ import { InsightCard } from '@/features/coach/components/insight-card'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { VoiceDictationButton } from '@/components/voice-dictation-button'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { EmptyState } from '@/components/ui/empty-state'
 import { GlassCard } from '@/components/ui/glass-card'
@@ -815,6 +816,10 @@ function ChatSection({ scopeKey }: ChatSectionProps) {
           // text-base (16px) on mobile stops iOS Safari from auto-zooming the
           // page when the field is focused. Back to text-sm from sm: up.
           className="min-w-0 flex-1 text-base sm:text-sm"
+        />
+        <VoiceDictationButton
+          disabled={streaming}
+          onTranscript={(transcript) => handleSend(transcript)}
         />
         {streaming ? (
           <Button
