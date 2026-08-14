@@ -25,6 +25,7 @@ import { onCoachSendRequest } from '@/lib/coach-bridge'
 import { useDismissable } from '@/lib/use-dismissable'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { CoachIcon } from '@/components/icons/coach-icon'
+import { VoiceDictationButton } from '@/components/voice-dictation-button'
 import { CoachMarkdown } from '@/features/coach/components/coach-markdown'
 import { CoachErrorText } from '@/features/coach/utils/stream-error-toast'
 import {
@@ -398,6 +399,10 @@ export function FloatingCoachPopover({ open, onClose }: FloatingCoachPopoverProp
           // min-w-0 so the field can shrink in the row; text-base (16px) on
           // mobile stops iOS Safari zooming in on focus, text-sm from sm: up.
           className="h-9 min-w-0 flex-1 rounded-md border border-zinc-200 bg-white px-2.5 text-base text-zinc-900 placeholder:text-zinc-400 focus:border-[#f2cc0d] focus:outline-none focus:ring-1 focus:ring-[#f2cc0d] disabled:opacity-50 sm:text-sm"
+        />
+        <VoiceDictationButton
+          disabled={streaming}
+          onTranscript={(transcript) => handleSend(transcript)}
         />
         {streaming ? (
           <button

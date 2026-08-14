@@ -12,6 +12,7 @@ import { FeatherPenIcon } from '@/components/icons/feather-pen-icon'
 
 import { appendToTodayJournal } from '@/lib/journal-quick-append'
 import { Button } from '@/components/ui/button'
+import { VoiceDictationButton } from '@/components/voice-dictation-button'
 import {
   Popover,
   PopoverContent,
@@ -93,17 +94,26 @@ function FloatingJournalButtonInner() {
             disabled={appendMutation.isPending}
             className="resize-y text-sm leading-relaxed"
           />
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <span className="text-[10px] text-zinc-500">Saves to today’s entry.</span>
-            <Button
-              type="button"
-              variant="brand"
-              size="sm"
-              onClick={() => canSave && appendMutation.mutate(text)}
-              disabled={!canSave}
-            >
-              {appendMutation.isPending ? 'Saving…' : 'Save'}
-            </Button>
+            <div className="flex items-center gap-2">
+              <VoiceDictationButton
+                disabled={appendMutation.isPending}
+                label="Dictate a journal entry"
+                onTranscript={(transcript) =>
+                  setText((prev) => (prev.trim() ? `${prev.trim()} ${transcript}` : transcript))
+                }
+              />
+              <Button
+                type="button"
+                variant="brand"
+                size="sm"
+                onClick={() => canSave && appendMutation.mutate(text)}
+                disabled={!canSave}
+              >
+                {appendMutation.isPending ? 'Saving…' : 'Save'}
+              </Button>
+            </div>
           </div>
         </div>
       </PopoverContent>
