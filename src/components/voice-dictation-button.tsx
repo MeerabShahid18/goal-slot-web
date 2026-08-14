@@ -12,6 +12,15 @@ export interface VoiceDictationButtonProps {
   disabled?: boolean
   className?: string
   label?: string
+  /**
+   * Which way the listening/error panel opens relative to the button.
+   * Default 'top' fits a button sitting near the bottom of its container
+   * (a composer row). Set 'bottom' when the button sits near the TOP of a
+   * clipped (`overflow-hidden`) container instead — opening upward there
+   * pushes the panel past the container's edge and it renders invisible,
+   * clipped away with no visible error (see journal-entry-editor.tsx).
+   */
+  panelSide?: 'top' | 'bottom'
 }
 
 /**
@@ -34,6 +43,7 @@ export function VoiceDictationButton({
   disabled = false,
   className,
   label = 'Speak instead of typing',
+  panelSide = 'top',
 }: VoiceDictationButtonProps) {
   const {
     supported,
@@ -126,7 +136,10 @@ export function VoiceDictationButton({
         <div
           role="dialog"
           aria-label={listening ? 'Voice input' : 'Voice input problem'}
-          className="absolute bottom-full right-0 z-10 mb-2 w-[min(300px,80vw)] overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl"
+          className={cn(
+            'absolute right-0 z-10 w-[min(300px,80vw)] overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl',
+            panelSide === 'top' ? 'bottom-full mb-2' : 'top-full mt-2',
+          )}
         >
           {listening ? (
             <>

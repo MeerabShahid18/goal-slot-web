@@ -179,6 +179,7 @@ export function JournalEntryEditor({ entry, onSaveContent }: JournalEntryEditorP
         <div className="flex items-center gap-2 text-xs text-zinc-500">
           <VoiceDictationButton
             label="Dictate into this entry"
+            panelSide="bottom"
             onTranscript={(transcript) => handleInsertPrompt(`${transcript} `)}
           />
           <span className="hidden sm:inline">{wordCount} {wordCount === 1 ? 'word' : 'words'}</span>
