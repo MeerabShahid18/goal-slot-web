@@ -236,6 +236,56 @@ export const timeEntriesApi = {
   delete: (id: string) => api.delete(`/time-entries/${id}`),
 }
 
+export interface ActiveTimerSessionDto {
+  id: string
+  status: 'RUNNING' | 'PAUSED'
+  startedAt: string
+  segmentStartedAt: string | null
+  pausedAt: string | null
+  accumulatedMs: number
+  elapsedMs: number
+  serverTime: string
+  isStale: boolean
+  cappedElapsedMs: number
+  maxSessionMs: number
+  taskName: string | null
+  notes: string | null
+  goalId: string | null
+  goal: { id: string; title: string; color: string } | null
+  taskId: string | null
+  task: { id: string; title: string } | null
+  scheduleBlockId: string | null
+  scheduleBlock: { id: string; title: string } | null
+  lastClient: string | null
+}
+
+interface TimerAttributionFields {
+  taskName?: string | null
+  goalId?: string | null
+  taskId?: string | null
+  scheduleBlockId?: string | null
+  notes?: string | null
+}
+
+/**
+ * The single cross-device active timer session (`GET /timer/session` — see
+ * dw-time-api's ActiveTimerController). Singular resource, no id in the
+ * path: a user has at most one, scoped implicitly by their token.
+ */
+export const activeTimerApi = {
+  /** Returns null (200), not a 404, when nothing is running — safe to poll. */
+  getActive: () => api.get<ActiveTimerSessionDto | null>('/timer/session'),
+  /** 409s (body carries the current session) unless `takeOver: true`. */
+  start: (data: TimerAttributionFields & { takeOver?: boolean; client?: string } = {}) =>
+    api.post<ActiveTimerSessionDto>('/timer/session', data),
+  pause: () => api.post<ActiveTimerSessionDto>('/timer/session/pause'),
+  resume: () => api.post<ActiveTimerSessionDto>('/timer/session/resume'),
+  update: (data: TimerAttributionFields & { client?: string }) =>
+    api.patch<ActiveTimerSessionDto>('/timer/session', data),
+  stop: (data: TimerAttributionFields & { client?: string } = {}) => api.post('/timer/session/stop', data),
+  discard: () => api.delete<{ discarded: boolean }>('/timer/session'),
+}
+
 // Schedule API
 export const scheduleApi = {
   getAll: () => api.get('/schedule'),

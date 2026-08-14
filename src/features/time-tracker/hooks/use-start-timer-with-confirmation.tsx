@@ -84,13 +84,17 @@ export function useStartTimerWithConfirmation() {
       // Execute callback (e.g., update task status) before starting new timer
       await pendingTimerParams.onStartTimer?.()
 
-      // Start the new timer
+      // Start the new timer. takeOver: true because the outgoing session's
+      // time was just saved above but its server-side row hasn't been
+      // cleared yet — without this the server 409s on its own still-active
+      // session instead of replacing it.
       start(
         pendingTimerParams.task,
         pendingTimerParams.taskId,
         pendingTimerParams.category,
         pendingTimerParams.goalId,
         pendingTimerParams.scheduleBlockId,
+        true,
       )
 
       setShowConfirmDialog(false)
@@ -112,13 +116,16 @@ export function useStartTimerWithConfirmation() {
     // Execute callback (e.g., update task status) before starting new timer
     await pendingTimerParams.onStartTimer?.()
 
-    // Start the new timer
+    // Start the new timer. takeOver: true so this doesn't race the
+    // best-effort discard() reset() just fired in the background — the
+    // server accepts the new session and clears the old row itself either way.
     start(
       pendingTimerParams.task,
       pendingTimerParams.taskId,
       pendingTimerParams.category,
       pendingTimerParams.goalId,
       pendingTimerParams.scheduleBlockId,
+      true,
     )
 
     setShowConfirmDialog(false)
