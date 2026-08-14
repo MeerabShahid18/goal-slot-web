@@ -1,0 +1,218 @@
+'use client'
+
+import { AlertTriangle, Check, Loader2, Mic, MicOff, Square } from 'lucide-react'
+
+import { cn } from '@/lib/utils'
+import { useSpeechRecognition } from '@/hooks/use-speech-recognition'
+
+export interface VoiceDictationButtonProps {
+  /** Called with the finalized transcript once the user stops speaking. */
+  onTranscript: (transcript: string) => void | Promise<void>
+  /** Disables the trigger without hiding it (e.g. while a reply is streaming). */
+  disabled?: boolean
+  className?: string
+  label?: string
+}
+
+/**
+ * Compact mic button meant to sit inline in a composer row (Coach quick
+ * chat, Journal quick-jot), as opposed to FloatingVoiceButton which is
+ * anchored at a fixed page position.
+ *
+ * The listening/error panel here is `position: absolute` against this
+ * button's own wrapper, not `position: fixed` against the viewport — two
+ * fixed-position panels that happen to share coordinates is exactly what
+ * let the floating mic silently close the Coach popover it was supposed to
+ * feed (both panels rendered at the same fixed spot). Scoping the panel to
+ * its trigger avoids that class of bug by construction.
+ *
+ * Renders nothing when the browser has no Web Speech API — see
+ * use-speech-recognition.ts.
+ */
+export function VoiceDictationButton({
+  onTranscript,
+  disabled = false,
+  className,
+  label = 'Speak instead of typing',
+}: VoiceDictationButtonProps) {
+  const {
+    supported,
+    status,
+    interimTranscript,
+    finalTranscript,
+    errorMessage,
+    start,
+    stop,
+    cancel,
+    reset,
+    retryAfterPermissionDenied,
+  } = useSpeechRecognition({ onTranscript })
+
+  const listening = status === 'listening'
+  const failed = status === 'error' || status === 'permission-denied'
+  const panelOpen = listening || failed
+
+  if (!supported) return null
+
+  const handleClick = () => {
+    if (disabled || status === 'processing') return
+    if (listening) {
+      stop()
+      return
+    }
+    if (failed) {
+      reset()
+      return
+    }
+    start()
+  }
+
+  const title = (() => {
+    switch (status) {
+      case 'listening':
+        return 'Stop listening and use this text'
+      case 'processing':
+        return 'Processing…'
+      case 'success':
+        return 'Captured'
+      case 'permission-denied':
+        return 'Microphone blocked. Dismiss this message'
+      case 'error':
+        return 'Voice input failed. Dismiss this message'
+      default:
+        return label
+    }
+  })()
+
+  return (
+    <div className={cn('relative shrink-0', className)}>
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={disabled && !panelOpen}
+        aria-label={title}
+        title={title}
+        aria-pressed={listening}
+        aria-expanded={panelOpen}
+        aria-busy={status === 'processing'}
+        className={cn(
+          'inline-flex h-9 w-9 items-center justify-center rounded-md border transition-colors',
+          'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#f2cc0d]',
+          status === 'idle' &&
+            'border-zinc-200 bg-white text-zinc-500 hover:border-[#f2cc0d] hover:text-[#8a7307]',
+          listening && 'border-[#f2cc0d] bg-[#fffbea] text-[#8a7307]',
+          status === 'processing' && 'border-[#f2cc0d] bg-white text-[#8a7307]',
+          status === 'success' && 'border-[#f2cc0d] bg-[#fffbea] text-[#8a7307]',
+          failed && 'border-rose-300 bg-rose-50 text-rose-600 hover:border-rose-400',
+          disabled && !panelOpen && 'cursor-not-allowed opacity-50',
+        )}
+      >
+        {status === 'processing' ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : status === 'success' ? (
+          <Check className="h-4 w-4" />
+        ) : status === 'permission-denied' ? (
+          <MicOff className="h-4 w-4" />
+        ) : status === 'error' ? (
+          <AlertTriangle className="h-4 w-4" />
+        ) : listening ? (
+          <Square className="h-3.5 w-3.5 fill-current" />
+        ) : (
+          <Mic className="h-4 w-4" />
+        )}
+      </button>
+
+      {panelOpen && (
+        <div
+          role="dialog"
+          aria-label={listening ? 'Voice input' : 'Voice input problem'}
+          className="absolute bottom-full right-0 z-10 mb-2 w-[min(300px,80vw)] overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl"
+        >
+          {listening ? (
+            <>
+              <div className="flex items-center gap-2 border-b border-zinc-200 bg-gradient-to-br from-[#fffbea] to-white px-3 py-2">
+                <span className="relative inline-flex h-2 w-2">
+                  <span
+                    aria-hidden
+                    className="absolute inline-flex h-full w-full rounded-full bg-[#f2cc0d] motion-safe:animate-ping"
+                  />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-[#f2cc0d]" />
+                </span>
+                <span className="text-xs font-semibold text-zinc-900">Listening…</span>
+              </div>
+              <div className="px-3 py-2">
+                <p className="min-h-[2rem] text-[12px] leading-relaxed text-zinc-900">
+                  {finalTranscript || interimTranscript ? (
+                    <>
+                      <span>{finalTranscript}</span>
+                      {finalTranscript && interimTranscript ? ' ' : ''}
+                      <span className="text-zinc-400">{interimTranscript}</span>
+                    </>
+                  ) : (
+                    <span className="text-zinc-400">Start talking…</span>
+                  )}
+                </p>
+              </div>
+              <div className="flex items-center justify-end gap-2 border-t border-zinc-100 px-3 py-2">
+                <button
+                  type="button"
+                  onClick={cancel}
+                  className="rounded-md px-2 py-1 text-[11px] font-medium text-zinc-600 hover:bg-zinc-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={stop}
+                  className="inline-flex items-center gap-1 rounded-md bg-[#f2cc0d] px-2 py-1 text-[11px] font-semibold text-zinc-900 hover:brightness-95"
+                >
+                  <Square className="h-3 w-3 fill-current" />
+                  Stop
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 border-b border-rose-100 bg-rose-50 px-3 py-2 text-rose-700">
+                {status === 'permission-denied' ? (
+                  <MicOff className="h-3.5 w-3.5" />
+                ) : (
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                )}
+                <span className="text-xs font-semibold">
+                  {status === 'permission-denied' ? 'Microphone blocked' : 'Voice input failed'}
+                </span>
+              </div>
+              <div className="px-3 py-2">
+                <p className="text-[11px] leading-relaxed text-zinc-700">{errorMessage}</p>
+              </div>
+              <div className="flex items-center justify-end gap-2 border-t border-zinc-100 px-3 py-2">
+                <button
+                  type="button"
+                  onClick={reset}
+                  className="rounded-md px-2 py-1 text-[11px] font-medium text-zinc-600 hover:bg-zinc-100"
+                >
+                  Dismiss
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (status === 'permission-denied') {
+                      retryAfterPermissionDenied()
+                    } else {
+                      reset()
+                      start()
+                    }
+                  }}
+                  className="rounded-md bg-[#f2cc0d] px-2 py-1 text-[11px] font-semibold text-zinc-900 hover:brightness-95"
+                >
+                  {status === 'permission-denied' ? 'I have allowed it' : 'Try again'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}

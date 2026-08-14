@@ -7,6 +7,7 @@ import { Check, Loader2 } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import { TiptapEditor } from '@/components/tiptap-editor/tiptap-editor'
+import { VoiceDictationButton } from '@/components/voice-dictation-button'
 import { JournalUntangle } from '@/features/journal/components/journal-untangle'
 
 interface JournalEntryEditorProps {
@@ -176,6 +177,10 @@ export function JournalEntryEditor({ entry, onSaveContent }: JournalEntryEditorP
           </h2>
         </div>
         <div className="flex items-center gap-2 text-xs text-zinc-500">
+          <VoiceDictationButton
+            label="Dictate into this entry"
+            onTranscript={(transcript) => handleInsertPrompt(`${transcript} `)}
+          />
           <span className="hidden sm:inline">{wordCount} {wordCount === 1 ? 'word' : 'words'}</span>
           <span aria-hidden className="hidden h-1 w-1 rounded-full bg-zinc-300 sm:inline-block" />
           <span
