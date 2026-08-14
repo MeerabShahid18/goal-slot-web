@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { Task } from '@/features/time-tracker/utils/types'
 import { Plus, Search } from 'lucide-react'
@@ -35,21 +35,30 @@ export function TaskSelector({
   const dropdownRef = useRef<HTMLDivElement>(null)
   const lastSyncedTaskIdRef = useRef<string | null>(null)
 
-  // Filter tasks based on search
-  const filteredTasks = tasks.filter((task) =>
-    (task.title ?? '').toLowerCase().includes(searchValue.toLowerCase()),
+  // Filter tasks based on search. This component is rendered inside the
+  // time-tracker page which re-renders every second while a timer is
+  // running, so filtering/grouping the full task list on every render
+  // (even when `tasks`/`searchValue` haven't changed) is wasted work —
+  // useMemo skips it on the ticks where neither input changed.
+  const filteredTasks = useMemo(
+    () => tasks.filter((task) => (task.title ?? '').toLowerCase().includes(searchValue.toLowerCase())),
+    [tasks, searchValue],
   )
 
-  const groupedTasks = filteredTasks.reduce((groups: { label: string; tasks: Task[] }[], task) => {
-    const label = task.goal?.title || 'No Goal'
-    const existing = groups.find((group) => group.label === label)
-    if (existing) {
-      existing.tasks.push(task)
-    } else {
-      groups.push({ label, tasks: [task] })
-    }
-    return groups
-  }, [])
+  const groupedTasks = useMemo(
+    () =>
+      filteredTasks.reduce((groups: { label: string; tasks: Task[] }[], task) => {
+        const label = task.goal?.title || 'No Goal'
+        const existing = groups.find((group) => group.label === label)
+        if (existing) {
+          existing.tasks.push(task)
+        } else {
+          groups.push({ label, tasks: [task] })
+        }
+        return groups
+      }, []),
+    [filteredTasks],
+  )
 
   // Check if we should show "create new" option
   const showCreateOption =

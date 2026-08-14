@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, type CSSProperties } from 'react'
+import { memo, useRef, useState, type CSSProperties } from 'react'
 
 import { useCategoriesQuery } from '@/features/categories'
 import { useDeleteScheduleBlock } from '@/features/schedule/hooks/use-schedule-mutations'
@@ -22,11 +22,11 @@ type DraggableBlockProps = {
   top: number
   height: number
   isActiveDrag?: boolean
-  onEdit: () => void
-  onViewDetail: () => void
+  onEdit: (block: ScheduleBlock) => void
+  onViewDetail: (block: ScheduleBlock) => void
 }
 
-export function DraggableBlock({ block, top, height, isActiveDrag, onEdit, onViewDetail }: DraggableBlockProps) {
+function DraggableBlockImpl({ block, top, height, isActiveDrag, onEdit, onViewDetail }: DraggableBlockProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const headerRef = useRef<HTMLDivElement>(null)
   const { mutateAsync: deleteBlock } = useDeleteScheduleBlock()
@@ -53,12 +53,12 @@ export function DraggableBlock({ block, top, height, isActiveDrag, onEdit, onVie
 
   const handleEditClick = (event: React.MouseEvent) => {
     event.stopPropagation()
-    onEdit()
+    onEdit(block)
   }
 
   const handleBlockClick = (event: React.MouseEvent) => {
     if (deleteDialogOpen) return
-    onViewDetail()
+    onViewDetail(block)
   }
 
   const confirmDelete = async () => {
@@ -186,6 +186,14 @@ export function DraggableBlock({ block, top, height, isActiveDrag, onEdit, onVie
     </motion.div>
   )
 }
+
+// Memoized: ScheduleGrid re-renders on every drag-move pointer event (to
+// update the drag preview), which previously re-rendered every block in
+// the schedule on every pointer move. With stable `onEdit`/`onViewDetail`
+// callbacks from SchedulePage and structurally-shared `block` data from
+// react-query, only the block(s) whose own props actually changed
+// (e.g. the one being dragged) re-render now.
+export const DraggableBlock = memo(DraggableBlockImpl)
 
 type ResizeHandleProps = {
   position: 'top' | 'bottom'

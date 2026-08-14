@@ -1,5 +1,3 @@
-'use client'
-
 import { WhiteboardsPage } from '@/features/whiteboards'
 
 export default function WhiteboardsRoute() {

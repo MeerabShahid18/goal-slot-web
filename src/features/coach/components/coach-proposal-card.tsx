@@ -436,22 +436,27 @@ export function CoachProposalCard({ block, sourceMessageId }: CoachProposalCardP
 
   // Eagerly populate the schedule + goals caches so describeAction can resolve
   // ids to "Qur'an Reading, Sun, 6:00 AM to 6:30 AM" even when the user hasn't
-  // visited the Schedule or Goals page yet. staleTime 0 + refetchOnMount
-  // 'always' so a block Coach just created/learned about in this conversation
-  // (and that isn't in the user's last cached schedule fetch) gets pulled in
-  // before the card renders — fixes "Block 3df269cf" fallback strings when
-  // some ids in the proposal aren't yet known to the client cache.
+  // visited the Schedule or Goals page yet. A short staleTime (rather than 0 +
+  // refetchOnMount: 'always') still guarantees a block Coach just
+  // created/learned about in this conversation gets pulled in — fixes "Block
+  // 3df269cf" fallback strings when some ids in the proposal aren't yet known
+  // to the client cache — but without forcing a brand new network round trip
+  // for every single proposal card. A conversation can render many of these
+  // cards in quick succession (one per proposal block across several
+  // messages); with staleTime 0 + refetchOnMount: 'always', each one indep-
+  // endently refetched all three queries even when a sibling card fetched
+  // the exact same data a moment earlier. 10s is long enough to cover a
+  // burst of cards rendering together, short enough to still catch data
+  // Coach only just mutated in this same session.
   useQuery({
     queryKey: ['schedule', 'weekly'],
     queryFn: async () => (await scheduleApi.getWeekly()).data,
-    staleTime: 0,
-    refetchOnMount: 'always',
+    staleTime: 10_000,
   })
   useQuery({
     queryKey: ['goals', 'list', undefined],
     queryFn: async () => (await goalsApi.getAll({})).data,
-    staleTime: 0,
-    refetchOnMount: 'always',
+    staleTime: 10_000,
   })
   // Eager fetch of the last 30 days of time entries so UPDATE_TIME_ENTRY
   // / DELETE_TIME_ENTRY proposals can render the entry's task name +
@@ -465,8 +470,7 @@ export function CoachProposalCard({ block, sourceMessageId }: CoachProposalCardP
       const data = res.data as any
       return Array.isArray(data) ? data : data?.items ?? []
     },
-    staleTime: 0,
-    refetchOnMount: 'always',
+    staleTime: 10_000,
   })
   const [selected, setSelected] = useState<Set<number>>(
     () => new Set(block.actions.map((_, i) => i)),

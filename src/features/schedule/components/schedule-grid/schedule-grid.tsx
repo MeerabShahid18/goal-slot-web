@@ -111,8 +111,8 @@ export function ScheduleGrid({
         top={top}
         height={height}
         isActiveDrag={activeId === block.id}
-        onEdit={() => onEdit(block)}
-        onViewDetail={() => onViewDetail(block)}
+        onEdit={onEdit}
+        onViewDetail={onViewDetail}
       />
     )
   }

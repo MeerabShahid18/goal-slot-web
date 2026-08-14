@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import dynamic from 'next/dynamic'
 
 import { useCategoriesQuery } from '@/features/categories'
 import { useCreateGoalMutation, useUpdateGoalMutation } from '@/features/goals/hooks/use-goals-mutations'
@@ -23,8 +24,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { ColorPicker } from '@/components/ui/color-picker'
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { TiptapEditor } from '@/components/tiptap-editor/tiptap-editor'
 import { WeeklyReflectionModal } from '@/features/goals/components/weekly-reflection-modal'
+
+// TiptapEditor pulls in the full StarterKit + a dozen extension packages.
+// GoalModal is rendered unconditionally from DashboardHeader (part of the
+// dashboard route, the main post-login page), so a static import shipped
+// that whole editor bundle on first paint even when the user never opens
+// "New Goal". Loading it on demand keeps it out of the dashboard's initial
+// route bundle — same pattern as the whiteboard's Excalidraw lazy-load.
+const TiptapEditor = dynamic(
+  () => import('@/components/tiptap-editor/tiptap-editor').then((mod) => mod.TiptapEditor),
+  {
+    ssr: false,
+    loading: () => <div className="min-h-[280px] animate-pulse rounded-lg bg-zinc-50" />,
+  },
+)
 
 interface GoalModalProps {
   isOpen: boolean

@@ -167,11 +167,6 @@ export const useIsAdmin = () => {
   return user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN'
 }
 
-export const useIsSuperAdmin = () => {
-  const user = useAuthStore((state) => state.user)
-  return user?.role === 'SUPER_ADMIN'
-}
-
 export const useHasProAccess = () => {
   const user = useAuthStore((state) => state.user)
   if (!user) return false

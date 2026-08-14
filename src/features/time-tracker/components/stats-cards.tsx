@@ -1,3 +1,5 @@
+import { memo, useMemo } from 'react'
+
 import { TimeEntry } from '@/features/time-tracker/utils/types'
 import { History, Target, Timer } from 'lucide-react'
 
@@ -8,12 +10,19 @@ interface StatsCardsProps {
   recentEntries: TimeEntry[]
 }
 
-export function StatsCards({ recentEntries }: StatsCardsProps) {
-  const today = new Date().toISOString().split('T')[0]
-  const normalizeDate = (date: string) => date.split('T')[0]
-
-  const todayEntries = recentEntries.filter((e) => normalizeDate(e.date) === today)
-  const todayTotalMinutes = todayEntries.reduce((sum, e) => sum + e.duration, 0)
+// This card lives on the time-tracker page, which re-renders every second
+// while a timer is running. `recentEntries` is a react-query result that
+// keeps a stable reference between ticks (structural sharing), so memo
+// skips re-rendering this component on ticks where it's unchanged, and
+// useMemo skips recomputing the filter/reduce below on the renders where
+// it does run for an unrelated reason.
+function StatsCardsImpl({ recentEntries }: StatsCardsProps) {
+  const { todayEntries, todayTotalMinutes } = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0]
+    const normalizeDate = (date: string) => date.split('T')[0]
+    const entries = recentEntries.filter((e) => normalizeDate(e.date) === today)
+    return { todayEntries: entries, todayTotalMinutes: entries.reduce((sum, e) => sum + e.duration, 0) }
+  }, [recentEntries])
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
@@ -23,3 +32,5 @@ export function StatsCards({ recentEntries }: StatsCardsProps) {
     </div>
   )
 }
+
+export const StatsCards = memo(StatsCardsImpl)

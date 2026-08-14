@@ -137,7 +137,11 @@ function PublicShareViewContent() {
   const isPublicLink = shareData?.isPublicLink ?? false
   const canViewData = isPublicLink || isAuthenticated
 
-  // Fetch time entries (only if allowed to view data)
+  // Fetch time entries (only if allowed to view data). For authenticated viewers, canViewData is
+  // already known synchronously (doesn't need shareInfoQuery to resolve first), so gating on just
+  // `canViewData` lets this fetch start in parallel with shareInfoQuery instead of waiting behind
+  // it. Unauthenticated public-link viewers still wait naturally, since canViewData itself derives
+  // from shareInfoQuery.data.isPublicLink in that case.
   const entriesQuery = useQuery({
     queryKey: ['public-share-entries', token, range.startDate, range.endDate],
     queryFn: async () => {
@@ -145,10 +149,10 @@ function PublicShareViewContent() {
       const res = await sharingApi.getPublicSharedTimeEntries(token, range.startDate, range.endDate)
       return res.data as SharedTimeEntry[]
     },
-    enabled: !!token && !!shareInfoQuery.data && canViewData,
+    enabled: !!token && canViewData,
   })
 
-  // Fetch goals (only if allowed to view data)
+  // Fetch goals (only if allowed to view data) — see entriesQuery comment above.
   const goalsQuery = useQuery({
     queryKey: ['public-share-goals', token],
     queryFn: async () => {
@@ -156,7 +160,7 @@ function PublicShareViewContent() {
       const res = await sharingApi.getPublicSharedGoals(token)
       return res.data as SharedGoal[]
     },
-    enabled: !!token && !!shareInfoQuery.data && canViewData,
+    enabled: !!token && canViewData,
   })
 
   const entries = useMemo(() => entriesQuery.data ?? [], [entriesQuery.data])

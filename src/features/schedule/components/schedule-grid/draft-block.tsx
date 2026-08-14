@@ -1,5 +1,3 @@
-'use client'
-
 import { DAY_START_MIN, PX_PER_MIN } from '@/features/schedule/utils/constants'
 import { DraftSelection } from '@/features/schedule/utils/types'
 
