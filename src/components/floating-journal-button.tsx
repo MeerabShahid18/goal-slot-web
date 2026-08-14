@@ -10,7 +10,7 @@ import { toast } from 'react-hot-toast'
 
 import { FeatherPenIcon } from '@/components/icons/feather-pen-icon'
 
-import { coachApi } from '@/lib/api'
+import { appendToTodayJournal } from '@/lib/journal-quick-append'
 import { Button } from '@/components/ui/button'
 import {
   Popover,
@@ -18,31 +18,6 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { Textarea } from '@/components/ui/textarea'
-
-function todayKey(): string {
-  const d = new Date()
-  const yyyy = d.getFullYear()
-  const mm = String(d.getMonth() + 1).padStart(2, '0')
-  const dd = String(d.getDate()).padStart(2, '0')
-  return `${yyyy}-${mm}-${dd}`
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-
-function textToParagraphs(text: string): string {
-  return text
-    .trim()
-    .split(/\n{2,}/)
-    .map((para) => `<p>${escapeHtml(para).replace(/\n/g, '<br />')}</p>`)
-    .join('')
-}
 
 /**
  * Floating "Journal" button. Shown on every dashboard page. Quick-jot popover
@@ -62,30 +37,8 @@ function FloatingJournalButtonInner() {
   const [text, setText] = useState('')
 
   const appendMutation = useMutation({
-    mutationFn: async (snippet: string) => {
-      const date = todayKey()
-      // Pull today's existing content (if any) so we append rather than
-      // overwrite. coachApi.getJournalEntry 404s if there's no entry yet —
-      // upsert below will create one in that case.
-      let existing = ''
-      try {
-        const res = await coachApi.getJournalEntry(date)
-        existing = res.data?.content ?? ''
-      } catch {
-        // No entry yet; that's fine.
-      }
-      const stamp = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-      const newHtml = `${existing}${existing ? '' : ''}<p><strong>${escapeHtml(
-        stamp,
-      )}</strong></p>${textToParagraphs(snippet)}`
-      if (!existing) {
-        await coachApi.upsertJournalEntry({ date, content: newHtml })
-      } else {
-        await coachApi.updateJournalContent(date, newHtml)
-      }
-    },
+    mutationFn: (snippet: string) => appendToTodayJournal(queryClient, snippet),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['coach', 'journal', 'entries'] })
       toast.success('Saved to today’s journal.')
       setText('')
       setOpen(false)

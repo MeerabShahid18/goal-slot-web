@@ -1,28 +1,34 @@
 'use client'
 
-import { useCallback, useMemo, useRef } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 
-import { AlertTriangle, Check, Loader2, Mic, MicOff, Square, X } from 'lucide-react'
+import { AlertTriangle, Check, Loader2, Mic, MicOff, Square, X, Zap } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import { useDismissable } from '@/lib/use-dismissable'
 import { requestCoachSend } from '@/lib/coach-bridge'
 import { useSpeechRecognition } from '@/hooks/use-speech-recognition'
+import { useVoiceFastPath } from '@/hooks/use-voice-fast-path'
 import { Button } from '@/components/ui/button'
 
 /**
  * Floating microphone, anchored in the bottom-right cluster next to the
  * Coach button on every authenticated page.
  *
- * It is an input device for the Coach and nothing more. A finished
- * transcript is dispatched on the `goalslot:coach-send` bridge, which the
- * Coach quick-chat popover (or the full Coach page) picks up and pushes
- * through the exact same `coachApi.streamChat` call the typed composer
- * uses. Everything after that — the proposal parsing, the proposal card,
- * the Apply button that hits `/coach/proposals/apply` — is the existing
- * pipeline, untouched. A spoken request and a typed one are the same
- * request by the time anything can change in the database.
+ * Every transcript is first offered to the voice fast path
+ * (useVoiceFastPath, backed by the plain REST `/coach/voice-intent` classify
+ * call): trivial, reversible commands it's confident about — start/stop/
+ * pause/resume the timer, a quick note, a journal line, a bare task — run
+ * directly against the same mutations their own pages use, near-instantly
+ * and with no confirmation step. Anything the fast path declines (including
+ * a classify call that fails or times out — it never blocks on that) is
+ * dispatched on the `goalslot:coach-send` bridge exactly as before: the
+ * Coach quick-chat popover (or the full Coach page) picks it up and pushes
+ * it through the same `coachApi.streamChat` call the typed composer uses,
+ * proposal card and Apply button untouched. A spoken request that reaches
+ * Coach and a typed one are still the same request by the time anything can
+ * change in the database — the fast path only shortens the trivial cases.
  *
  * Renders nothing when the browser has no Web Speech API. A microphone
  * that cannot listen is worse than no microphone at all.
@@ -38,11 +44,32 @@ export function FloatingVoiceButton() {
 
 function FloatingVoiceButtonInner() {
   const buttonRef = useRef<HTMLButtonElement | null>(null)
+  const { attempt: attemptFastPath } = useVoiceFastPath()
 
-  const handleTranscript = useCallback((transcript: string) => {
-    const { delivered, reason } = requestCoachSend(transcript)
-    if (!delivered) throw new Error(reason ?? 'the Coach chat did not respond')
-  }, [])
+  // Which path the *current* (or just-finished) transcript took, so the
+  // button's processing/success visuals can say "doing it now" vs "sending
+  // to the Coach" instead of always assuming the slow path. `null` while a
+  // transcript is still being classified, and reset at the start of every
+  // new listening session (see handleClick / the "Try again" button below).
+  const [routeKind, setRouteKind] = useState<'fast' | 'coach' | null>(null)
+  const [actionSummary, setActionSummary] = useState<string | null>(null)
+
+  const handleTranscript = useCallback(
+    async (transcript: string) => {
+      setRouteKind(null)
+      setActionSummary(null)
+      const result = await attemptFastPath(transcript)
+      if (result.handled) {
+        setRouteKind('fast')
+        setActionSummary(result.summary)
+        return
+      }
+      setRouteKind('coach')
+      const { delivered, reason } = requestCoachSend(transcript)
+      if (!delivered) throw new Error(reason ?? 'the Coach chat did not respond')
+    },
+    [attemptFastPath],
+  )
 
   const {
     supported,
@@ -88,17 +115,24 @@ function FloatingVoiceButtonInner() {
       reset()
       return
     }
+    // Fresh session: forget which path the previous transcript took so its
+    // "doing it now" / "sent to the Coach" copy doesn't flash stale before
+    // this one is classified.
+    setRouteKind(null)
+    setActionSummary(null)
     start()
   }
+
+  const isFast = routeKind === 'fast'
 
   const label = (() => {
     switch (status) {
       case 'listening':
-        return 'Stop listening and send to the Coach'
+        return 'Stop listening and send your request'
       case 'processing':
-        return 'Sending your request to the Coach'
+        return isFast ? 'Doing it now' : routeKind === 'coach' ? 'Sending your request to the Coach' : 'Working out what to do'
       case 'success':
-        return 'Sent to the Coach'
+        return isFast ? actionSummary ?? 'Done' : 'Sent to the Coach'
       case 'permission-denied':
         return 'Microphone blocked. Dismiss this message'
       case 'error':
@@ -113,11 +147,17 @@ function FloatingVoiceButtonInner() {
       case 'listening':
         return 'Listening. Speak your request, then press the button again to send it.'
       case 'processing':
-        return 'Sending your request to the Coach.'
+        return isFast
+          ? 'Doing it now.'
+          : routeKind === 'coach'
+            ? 'Sending your request to the Coach.'
+            : 'Working out what to do with that.'
       case 'success':
-        return finalTranscript
-          ? `Sent to the Coach: ${finalTranscript}. The Coach will reply with a proposed change for you to review and confirm.`
-          : 'Sent to the Coach.'
+        return isFast
+          ? actionSummary ?? 'Done.'
+          : finalTranscript
+            ? `Sent to the Coach: ${finalTranscript}. The Coach will reply with a proposed change for you to review and confirm.`
+            : 'Sent to the Coach.'
       default:
         return ''
     }
@@ -150,8 +190,12 @@ function FloatingVoiceButtonInner() {
           'hover:-translate-y-0.5',
           status === 'idle' && 'border-zinc-200 text-zinc-700 hover:border-[#f2cc0d] hover:text-[#8a7307]',
           listening && 'border-[#f2cc0d] bg-[#fffbea] text-[#8a7307]',
-          status === 'processing' && 'border-[#f2cc0d] text-[#8a7307]',
-          status === 'success' && 'border-[#f2cc0d] bg-[#fffbea] text-[#8a7307]',
+          // Fast-path actions get their own emerald accent (matches the
+          // "shared free trial" accent elsewhere) so a spoken command that
+          // ran directly reads as visually distinct from one handed off to
+          // the Coach, not just via different copy.
+          (status === 'processing' || status === 'success') &&
+            (isFast ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-[#f2cc0d] bg-[#fffbea] text-[#8a7307]'),
           failed && 'border-rose-300 bg-rose-50 text-rose-600 hover:border-rose-400',
         )}
       >
@@ -172,9 +216,13 @@ function FloatingVoiceButtonInner() {
         )}
         <span className="relative inline-flex">
           {status === 'processing' ? (
-            <Loader2 className="h-5 w-5 animate-spin" />
+            isFast ? (
+              <Zap className="h-5 w-5 animate-pulse fill-current" />
+            ) : (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            )
           ) : status === 'success' ? (
-            <Check className="h-5 w-5" />
+            isFast ? <Zap className="h-5 w-5 fill-current" /> : <Check className="h-5 w-5" />
           ) : status === 'permission-denied' ? (
             <MicOff className="h-5 w-5" />
           ) : status === 'error' ? (
@@ -227,12 +275,13 @@ function FloatingVoiceButtonInner() {
                     </>
                   ) : (
                     <span className="text-zinc-400">
-                      Try “add a task to call the bank” or “move my study block to 7pm”.
+                      Try “stop the timer” or “move my study block to 7pm”.
                     </span>
                   )}
                 </p>
                 <p className="mt-2 text-[11px] text-zinc-500">
-                  Nothing changes yet. The Coach will show you the change and you confirm it.
+                  Quick commands (start, stop, pause, resume, a quick note) run right away.
+                  Anything else goes to the Coach for you to confirm.
                 </p>
               </div>
               <div className="flex items-center justify-end gap-2 border-t border-zinc-100 bg-white px-3 py-2">
@@ -285,6 +334,8 @@ function FloatingVoiceButtonInner() {
                       // mic, so a still-blocked site costs one click, not a loop.
                       retryAfterPermissionDenied()
                     } else {
+                      setRouteKind(null)
+                      setActionSummary(null)
                       reset()
                       start()
                     }

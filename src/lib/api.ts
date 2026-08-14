@@ -924,6 +924,61 @@ export const coachApi = {
   updateInsightStatus: (id: string, status: CoachInsightStatusEnum, note?: string) =>
     api.post<CoachInsightDto>(`/coach/insights/${id}/status`, { status, note }),
   deleteInsight: (id: string) => api.delete<{ success: true }>(`/coach/insights/${id}`),
+
+  // Voice fast path — a plain classify-and-return REST call (no LLM
+  // conversation, no SSE), so the floating mic can route a trivial spoken
+  // command (start/stop the timer, a quick note) straight to the right
+  // direct mutation instead of round-tripping through streamChat's full
+  // context-bundle + system-prompt turn. Anything the classifier is not
+  // confident about, or doesn't cover, falls through to that full chat path
+  // unchanged — see src/lib/voice-intent-plan.ts for the routing decision.
+  classifyVoiceIntent: (transcript: string, context: CoachVoiceIntentContext) =>
+    api.post<CoachVoiceIntentResponse>(
+      '/coach/voice-intent',
+      { transcript, context },
+      // Short timeout: this exists to be fast. A slow/hung classify call is
+      // worse than no classify call, since either way we fall back to the
+      // full Coach conversation — better to fail that decision quickly.
+      { timeout: 6000 },
+    ),
+}
+
+// ---------------------------------------------------------------------------
+// Coach voice-intent classification (POST /coach/voice-intent)
+// ---------------------------------------------------------------------------
+
+export type CoachVoiceIntentType =
+  | 'START_TRACKING'
+  | 'STOP_TRACKING'
+  | 'PAUSE'
+  | 'RESUME'
+  | 'APPEND_NOTE'
+  | 'APPEND_JOURNAL'
+  | 'CREATE_TASK'
+  | 'CREATE_GOAL'
+  | 'DAY_QUERY'
+  | 'CHAT'
+  | 'UNKNOWN'
+
+export type CoachVoiceIntentConfidence = 'high' | 'low'
+
+export interface CoachVoiceIntentTarget {
+  kind: 'goal' | 'task'
+  id: string
+}
+
+export interface CoachVoiceIntentContext {
+  candidateGoals: { id: string; title: string }[]
+  candidateTasks: { id: string; title: string; goalId?: string }[]
+  timerStatus: 'idle' | 'running' | 'paused'
+}
+
+export interface CoachVoiceIntentResponse {
+  intent: CoachVoiceIntentType
+  confidence: CoachVoiceIntentConfidence
+  target: CoachVoiceIntentTarget | null
+  text: string | null
+  reasoning: string
 }
 
 // Notes API

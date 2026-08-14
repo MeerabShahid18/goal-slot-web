@@ -292,12 +292,13 @@ export function useSpeechRecognition({
           setFinalTranscript('')
         }, successResetMs)
       } catch (err) {
-        const detail = err instanceof Error ? err.message : 'the Coach chat did not respond'
-        // Echo the transcript back so a long request is not lost to a
-        // transient failure; the user can retype or paste it.
-        setErrorMessage(
-          `That did not reach the Coach because ${detail}. Heard: “${transcript}”.`,
-        )
+        const detail = err instanceof Error ? err.message : 'the request did not go through'
+        // Generic on purpose: `onTranscript` may resolve a request directly
+        // (the voice fast path) or hand it off to the Coach — this hook
+        // stays dumb about which. Echo the transcript back so a long
+        // request is not lost to a transient failure; the user can retype
+        // or paste it.
+        setErrorMessage(`That didn’t go through because ${detail}. Heard: “${transcript}”.`)
         setStatus('error')
       }
     },
