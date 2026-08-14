@@ -247,11 +247,32 @@ export function FloatingCoachPopover({ open, onClose }: FloatingCoachPopoverProp
     })
   }, [handleSend, scopeKey, streaming])
 
+  // The floating microphone (FloatingVoiceButton) is a sibling, not a
+  // descendant, so a click on it reads as "outside" this popover and would
+  // otherwise dismiss the very chat the voice input is meant to continue —
+  // the panel that was showing the conversation vanishes right as the user
+  // tries to keep talking to it. Looked up by id rather than a shared ref
+  // because the two buttons are independent components with no common
+  // parent to thread a ref through; matches the existing window-event
+  // bridge pattern (coach-bridge.ts) already used for this same coupling.
+  const voiceTriggerIgnoreRef = useMemo(
+    () => ({
+      get current() {
+        return typeof document === 'undefined'
+          ? null
+          : document.getElementById('floating-voice-trigger')
+      },
+    }),
+    [],
+  )
+
   // Only dismiss on outside-click when no nested ConfirmDialog is open —
   // otherwise clicking the confirm button (rendered in a portal outside
   // this ref) would also close the parent popover and lose the streamed
   // chat state. Same goes for Escape: let the dialog handle its own.
-  const dismissRef = useDismissable<HTMLDivElement>(open && !confirmClear, onClose)
+  const dismissRef = useDismissable<HTMLDivElement>(open && !confirmClear, onClose, [
+    voiceTriggerIgnoreRef,
+  ])
 
   if (!open) return null
 
