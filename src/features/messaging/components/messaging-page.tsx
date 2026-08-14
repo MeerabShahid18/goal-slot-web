@@ -156,7 +156,7 @@ export function MessagingPage() {
               <EmptyState
                 icon={<MessagesSquare />}
                 title="Pick a conversation"
-                description="Choose someone on the left, or start a new conversation from the Sharing screen."
+                description="Choose someone on the left, or use New to start a conversation with anyone you share with."
               />
             </div>
           )}
