@@ -59,13 +59,40 @@ sw.addEventListener('push', (event: PushEvent) => {
   )
 })
 
+// Every NotificationType the API dispatches through ReminderDispatchService
+// sends its routing payload as `data` shaped like the mobile app's deep-link
+// data (see goalslot-mobile's deep-links.ts) — a `type` discriminant plus
+// whatever id that type needs. No dispatch path sets a literal `data.url`
+// today, so resolving straight from `data.url` (as this used to) silently
+// fell through to '/dashboard' for every notification, message clicks
+// included. Mirror the mobile resolver's known shapes here; unrecognized or
+// future types fall back to '/dashboard', which is also the right landing
+// spot for INSTRUCTION_ASSIGNED today since assigned instructions render
+// directly on the dashboard rather than a dedicated per-instruction route.
+function resolveTargetUrl(data: Record<string, unknown> | undefined): string {
+  if (!data) return '/dashboard'
+  if (typeof data.url === 'string' && data.url) return data.url
+
+  switch (data.type) {
+    case 'conversation':
+      return typeof data.conversationId === 'string' ? `/dashboard/messages?c=${data.conversationId}` : '/dashboard/messages'
+    case 'schedule':
+      // SHARED_REPORT_UNVIEWED's payload — sharedAccessId isn't
+      // deep-linkable on this page yet, but the sharing tab is still a
+      // much better landing spot than the generic dashboard fallback.
+      return '/dashboard/sharing'
+    default:
+      return '/dashboard'
+  }
+}
+
 // Same focus-or-open-a-client approach as the local timer reminders in
 // useTimerNotifications (window.focus() on an existing tab), extended to
 // also navigate to the URL the payload pointed at when one is present.
 sw.addEventListener('notificationclick', (event: NotificationEvent) => {
   event.notification.close()
 
-  const targetUrl = (event.notification.data as { url?: string } | undefined)?.url ?? '/dashboard'
+  const targetUrl = resolveTargetUrl(event.notification.data as Record<string, unknown> | undefined)
 
   event.waitUntil(
     (async () => {
