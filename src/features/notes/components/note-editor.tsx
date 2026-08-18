@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import {
+  AlertTriangle,
   Check,
   Copy,
   Download,
@@ -31,6 +32,19 @@ import { useDeleteNoteMutation, useUpdateNoteMutation } from '../hooks/use-notes
 import { Note, NOTE_COLORS, NOTE_ICONS } from '../utils/types'
 import { ShareNoteDialog } from './share-note-dialog'
 import { SharedWithPill } from './shared-with-pill'
+
+// The API accepts request bodies up to 50MB (main.ts's json({limit:'50mb'})),
+// but nothing between the browser and Node enforces a smaller ceiling, and
+// note content can grow unbounded because pasted/dropped images are embedded
+// as inline base64 data: URLs (tiptap-editor.tsx) with no size guard of their
+// own. A note that gets that large doesn't just risk hitting the real 50MB
+// wall — well before that, a single PUT that size is slow and fragile enough
+// to fail at the connection level (proxy/timeout/reset) with no HTTP response
+// at all, which reads identically to being offline. Reject client-side, well
+// under the real ceiling, so a doomed request never reaches the network and
+// autosave's 1s debounce doesn't hammer the API with the same oversized body
+// on every keystroke.
+const MAX_CONTENT_LENGTH = 3 * 1024 * 1024 // ~3MB of HTML
 
 // Convert old block-based JSON content to HTML
 function convertOldContentToHtml(content: string): string {
@@ -157,6 +171,10 @@ export function NoteEditor({ note, onDelete, readOnly = false, sharedBy = null }
   const [showShare, setShowShare] = useState(false)
   const [copySuccess, flashCopySuccess] = useTimedFlag<'link' | 'html'>()
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  // Set when the last edit pushed content past MAX_CONTENT_LENGTH. Blocks
+  // autosave (see saveContent) and surfaces an inline, actionable banner
+  // instead of letting the save fail ambiguously against the network.
+  const [contentTooLarge, setContentTooLarge] = useState(false)
   const isInitialized = useRef(false)
   const noteIdRef = useRef(note.id)
   const tiptapRef = useRef<Editor | null>(null)
@@ -182,6 +200,7 @@ export function NoteEditor({ note, onDelete, readOnly = false, sharedBy = null }
     isInitialized.current = true
     noteIdRef.current = note.id
     hasFocusedBodyRef.current = false
+    setContentTooLarge(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [note.id])
 
@@ -217,6 +236,11 @@ export function NoteEditor({ note, onDelete, readOnly = false, sharedBy = null }
   const saveContent = useCallback(
     (html: string) => {
       if (!isInitialized.current) return
+      if (html.length > MAX_CONTENT_LENGTH) {
+        setContentTooLarge(true)
+        return
+      }
+      setContentTooLarge(false)
       updateMutation.mutate({ id: noteIdRef.current, data: { content: html } })
     },
     [updateMutation],
@@ -612,6 +636,20 @@ export function NoteEditor({ note, onDelete, readOnly = false, sharedBy = null }
           <span>
             Shared with you by <span className="font-semibold text-zinc-900">{sharedBy.name}</span>
             <span className="text-zinc-400"> ({sharedBy.email})</span>
+          </span>
+        </div>
+      )}
+
+      {/* Content too large to save — shown instead of letting autosave keep
+          retrying a doomed request. Not a toast: this needs to stay visible
+          (and explain itself) for as long as the note is still oversized,
+          not flash and disappear like a transient network error would. */}
+      {contentTooLarge && (
+        <div className="flex shrink-0 items-start gap-2 border-b border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>
+            This note is too large to save. Remove some content or large embedded images, then it will save
+            automatically.
           </span>
         </div>
       )}

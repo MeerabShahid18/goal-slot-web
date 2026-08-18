@@ -20,10 +20,6 @@ function isQueued(result: unknown): result is QueuedResult {
   return Boolean(result) && (result as QueuedResult)[QUEUED] === true
 }
 
-function hasResponse(err: unknown): boolean {
-  return Boolean((err as { response?: unknown })?.response)
-}
-
 // A mutation's error toast is usually a fixed string, but some failures
 // (e.g. a plan-limit 403) need copy that's specific to what the server
 // actually rejected. Supporting a resolver here keeps that logic in one
@@ -82,7 +78,12 @@ export function useOfflineMutation<TVars, TContext = unknown, TResult = unknown>
       try {
         return (await operation.execute(payload, meta.idempotencyKey)) as TResult
       } catch (err) {
-        if (!hasResponse(err)) return enqueue(vars, payload, meta)
+        // Only treat this as "offline" when the browser itself reports no
+        // connectivity. A response-less axios error can also mean CORS,
+        // DNS, a connection reset, or the API being briefly unreachable
+        // (e.g. mid-deploy restart) while the browser is still online — none
+        // of those should be silently queued and retried forever.
+        if (!onlineManager.isOnline()) return enqueue(vars, payload, meta)
         throw err
       }
     },
