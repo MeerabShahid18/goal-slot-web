@@ -7,6 +7,15 @@ import { Note, CreateNoteDto, UpdateNoteDto } from '../utils/types'
 
 import '@/features/notes/utils/offline-operations'
 
+// The server sometimes rejects an update with a specific, actionable reason
+// (e.g. a length-limited field) rather than a generic failure. Surface that
+// text when present instead of always showing the same fixed toast — same
+// pattern as isPlanLimitError in use-time-tracker-mutations.ts.
+function serverErrorMessage(err: unknown): string | undefined {
+  const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+  return typeof message === 'string' ? message : undefined
+}
+
 // Query key for notes
 export const NOTES_QUERY_KEY = ['notes']
 export const SHARED_NOTES_QUERY_KEY = ['notes', 'shared-with-me']
@@ -139,7 +148,7 @@ export function useUpdateNoteMutation() {
     invalidateKeys: [NOTES_QUERY_KEY],
     messages: {
       offline: 'Note update saved offline',
-      error: 'Failed to update note',
+      error: (err) => serverErrorMessage(err) ?? 'Failed to update note',
     },
   })
 }
