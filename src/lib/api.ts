@@ -397,8 +397,11 @@ export const messagingApi = {
 }
 
 export const notificationsApi = {
-  list: (params?: { cursor?: string; limit?: number }) => api.get('/notifications', { params }),
+  list: (params?: { cursor?: string; limit?: number; scope?: 'all' | 'general' }) =>
+    api.get('/notifications', { params }),
   markRead: (id: string) => api.patch(`/notifications/${id}/read`),
+  markAllRead: () => api.patch('/notifications/read-all', null, { params: { scope: 'general' } }),
+  delete: (id: string) => api.delete(`/notifications/${id}`),
 }
 
 export const releaseNotesApi = {

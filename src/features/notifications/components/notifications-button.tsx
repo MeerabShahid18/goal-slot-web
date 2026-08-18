@@ -5,12 +5,18 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button1 } from '@/features/feedback/components/ui/button-1'
 import { Material } from '@/features/feedback/components/ui/material-1'
 import { useFeedbackWidgetStore } from '@/features/feedback/store/use-feedback-widget-store'
-import { useMarkNotificationRead, useNotificationsQuery } from '@/features/notifications/hooks/use-notifications'
+import {
+  useDeleteNotification,
+  useMarkAllNotificationsRead,
+  useMarkNotificationRead,
+  useNotificationsQuery,
+} from '@/features/notifications/hooks/use-notifications'
 import clsx from 'clsx'
-import { Bell } from 'lucide-react'
+import { Bell, X } from 'lucide-react'
 
 import { useAuthStore } from '@/lib/store'
 import { useClickOutside } from '@/hooks/use-click-outside'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 
 export const NotificationsButton = () => {
   const { isAuthenticated, isLoading } = useAuthStore()
@@ -18,8 +24,11 @@ export const NotificationsButton = () => {
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading: isQueryLoading } =
     useNotificationsQuery(10, { enabled: isAuthenticated })
   const markRead = useMarkNotificationRead()
+  const markAllRead = useMarkAllNotificationsRead()
+  const deleteNotification = useDeleteNotification()
 
   const [isOpen, setIsOpen] = useState(false)
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const buttonRef = useRef<HTMLButtonElement | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
   const [position, setPosition] = useState<React.CSSProperties>({})
@@ -68,6 +77,22 @@ export const NotificationsButton = () => {
     setIsOpen(false)
   }
 
+  const handleMarkAllRead = () => {
+    if (unreadCount === 0 || markAllRead.isPending) return
+    markAllRead.mutate()
+  }
+
+  const handleDeleteClick = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation()
+    setPendingDeleteId(id)
+  }
+
+  const confirmDelete = () => {
+    if (pendingDeleteId) {
+      deleteNotification.mutate(pendingDeleteId)
+    }
+  }
+
   if (!isAuthenticated || isLoading) return null
 
   return (
@@ -99,7 +124,17 @@ export const NotificationsButton = () => {
       >
         <div className="flex items-center justify-between border-b border-zinc-200 bg-zinc-50 px-3 py-2 text-sm font-semibold text-zinc-900">
           <span>Notifications</span>
-          <span className="text-xs font-normal text-zinc-500">{unreadCount} unread</span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-normal text-zinc-500">{unreadCount} unread</span>
+            <button
+              type="button"
+              onClick={handleMarkAllRead}
+              disabled={unreadCount === 0 || markAllRead.isPending}
+              className="text-xs font-medium text-blue-600 transition-colors hover:text-blue-700 disabled:cursor-not-allowed disabled:text-zinc-300"
+            >
+              Mark all read
+            </button>
+          </div>
         </div>
         <div className="max-h-[360px] overflow-y-auto bg-white">
           {isQueryLoading ? (
@@ -108,21 +143,33 @@ export const NotificationsButton = () => {
             <div className="px-4 py-6 text-center text-sm text-zinc-500">No notifications yet</div>
           ) : (
             notifications.map((item) => (
-              <button
+              <div
                 key={item.id}
                 className={clsx(
-                  'flex w-full flex-col items-start gap-1 border-b border-zinc-100 px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-zinc-50',
+                  'group relative flex w-full items-start border-b border-zinc-100 text-left transition-colors last:border-b-0 hover:bg-zinc-50',
                   item.readAt ? 'bg-white' : 'bg-[#fffbea]',
                 )}
-                onClick={() => handleNotificationClick(item)}
               >
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-                  {item.type.replace('_', ' ')}
-                </span>
-                <span className="text-sm font-semibold text-zinc-900">{item.title}</span>
-                {item.body && <span className="text-sm leading-relaxed text-zinc-700">{item.body}</span>}
-                <span className="text-[11px] text-zinc-400">{new Date(item.createdAt).toLocaleString()}</span>
-              </button>
+                <button
+                  className="flex min-w-0 flex-1 flex-col items-start gap-1 px-4 py-3 text-left"
+                  onClick={() => handleNotificationClick(item)}
+                >
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                    {item.type.replace('_', ' ')}
+                  </span>
+                  <span className="text-sm font-semibold text-zinc-900">{item.title}</span>
+                  {item.body && <span className="text-sm leading-relaxed text-zinc-700">{item.body}</span>}
+                  <span className="text-[11px] text-zinc-400">{new Date(item.createdAt).toLocaleString()}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => handleDeleteClick(e, item.id)}
+                  title="Delete notification"
+                  className="mr-2 mt-3 inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md text-zinc-400 opacity-0 transition-opacity hover:bg-zinc-200 hover:text-zinc-700 focus-visible:opacity-100 group-hover:opacity-100"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
             ))
           )}
         </div>
@@ -139,6 +186,18 @@ export const NotificationsButton = () => {
           </div>
         )}
       </div>
+      <ConfirmDialog
+        open={pendingDeleteId !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDeleteId(null)
+        }}
+        title="Delete Notification"
+        description="Are you sure you want to delete this notification? This action cannot be undone."
+        onConfirm={confirmDelete}
+        confirmButtonText="Delete"
+        variant="destructive"
+        isLoading={deleteNotification.isPending}
+      />
     </div>
   )
 }

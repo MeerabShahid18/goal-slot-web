@@ -1,4 +1,9 @@
-export type NotificationType = 'FEEDBACK_REPLY'
+export type NotificationType =
+  | 'FEEDBACK_REPLY'
+  | 'SHARED_REPORT_UNVIEWED'
+  | 'INSTRUCTION_ASSIGNED'
+  | 'MESSAGE_RECEIVED'
+  | 'APP_RELEASE'
 
 export interface AppNotification {
   id: string
