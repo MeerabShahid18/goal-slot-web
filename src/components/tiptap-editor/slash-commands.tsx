@@ -298,6 +298,20 @@ export const SlashCommands = Extension.create({
                 trigger: 'manual',
                 placement: 'bottom-start',
               })
+
+              // The popup is appended to document.body as a sibling of the host
+              // Dialog, outside Radix's react-remove-scroll shard allowlist
+              // (shards: [contentRef] in @radix-ui/react-dialog). That lock's
+              // document-level wheel/touchmove listener preventDefault()s any
+              // scroll not inside the dialog subtree, silently swallowing scroll
+              // on this menu when opened from a modal (e.g. create-task-modal.tsx,
+              // goal-modal.tsx). Stop propagation here, before the event bubbles
+              // to `document`, so the browser's native scroll on the menu's own
+              // overflow-y-auto runs unimpeded.
+              const popperEl = popup[0]?.popper
+              const stopScrollLock = (event: Event) => event.stopPropagation()
+              popperEl?.addEventListener('wheel', stopScrollLock, { passive: true })
+              popperEl?.addEventListener('touchmove', stopScrollLock, { passive: true })
             },
 
             onUpdate(props: any) {
