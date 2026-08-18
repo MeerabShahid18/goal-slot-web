@@ -289,29 +289,65 @@ export const SlashCommands = Extension.create({
 
               if (!props.clientRect) return
 
+              // Opened from inside a Radix Dialog (create-task-modal.tsx,
+              // goal-modal.tsx), this menu has to render as an actual DOM
+              // DESCENDANT of the dialog's own content, not a sibling
+              // appended to document.body. Two independent, confirmed bugs
+              // both trace back to that one difference:
+              //
+              //   1. POINTER EVENTS. Radix's Dialog sets `pointer-events:
+              //      none` on <body> itself while open, and explicitly
+              //      overrides it back to `auto` only on its own content
+              //      element (`[role="dialog"]`) so that stays clickable.
+              //      A popup appended to body inherits body's `none` and
+              //      the whole card of the menu becomes non-interactive to
+              //      the mouse — not just unscrollable, unclickable too
+              //      (arrow-key selection still worked, which is why this
+              //      wasn't a total outage). Confirmed live: a
+              //      document.body-appended element's computed
+              //      pointer-events was "none" while a dialog was open.
+              //
+              //   2. SCROLL LOCK. @radix-ui/react-dialog wraps its overlay
+              //      in react-remove-scroll, which installs a
+              //      CAPTURE-phase wheel/touchmove listener on `document`
+              //      that calls preventDefault() for any event whose
+              //      target isn't inside its `shards` allowlist (the
+              //      dialog's own content ref). Capture fires before the
+              //      event ever reaches a bubble-phase handler anywhere
+              //      inside the popup, so no listener attached to the
+              //      popup itself — however it stops propagation — can
+              //      intercept it in time; confirmed live by dispatching a
+              //      wheel event directly on the menu and observing
+              //      defaultPrevented stay true even with a bubble-phase
+              //      stopPropagation listener on the popup root already in
+              //      place. Rendering inside the shard is the only fix
+              //      that works WITH react-remove-scroll's own extension
+              //      point instead of racing its capture-phase listener.
+              //
+              // Falls back to document.body for every non-dialog usage
+              // (the public note page, journal, the full Notes editor),
+              // where neither issue applies.
+              const editorDom = props.editor?.view?.dom as HTMLElement | undefined
+              const dialogEl = editorDom?.closest('[role="dialog"]') as HTMLElement | null
+              const appendTarget = dialogEl ?? document.body
+
               popup = tippy('body', {
                 getReferenceClientRect: props.clientRect,
-                appendTo: () => document.body,
+                appendTo: () => appendTarget,
                 content: component.element,
                 showOnCreate: true,
                 interactive: true,
                 trigger: 'manual',
                 placement: 'bottom-start',
+                // Keeps the menu from being clipped by the dialog's own
+                // overflow-y-auto when there isn't enough room below the
+                // caret inside it — flips above / shifts within the
+                // dialog's bounds instead of the viewport's, since that's
+                // now its actual containing element.
+                popperOptions: dialogEl
+                  ? { modifiers: [{ name: 'preventOverflow', options: { boundary: dialogEl } }] }
+                  : undefined,
               })
-
-              // The popup is appended to document.body as a sibling of the host
-              // Dialog, outside Radix's react-remove-scroll shard allowlist
-              // (shards: [contentRef] in @radix-ui/react-dialog). That lock's
-              // document-level wheel/touchmove listener preventDefault()s any
-              // scroll not inside the dialog subtree, silently swallowing scroll
-              // on this menu when opened from a modal (e.g. create-task-modal.tsx,
-              // goal-modal.tsx). Stop propagation here, before the event bubbles
-              // to `document`, so the browser's native scroll on the menu's own
-              // overflow-y-auto runs unimpeded.
-              const popperEl = popup[0]?.popper
-              const stopScrollLock = (event: Event) => event.stopPropagation()
-              popperEl?.addEventListener('wheel', stopScrollLock, { passive: true })
-              popperEl?.addEventListener('touchmove', stopScrollLock, { passive: true })
             },
 
             onUpdate(props: any) {
