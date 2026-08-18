@@ -143,7 +143,12 @@ export function useExportReportMutation() {
         ...params,
         goalIds: params.goalIds?.join(','),
         taskIds: params.taskIds?.join(','),
-        excludeEntryIds: params.excludeEntryIds?.join(','),
+        // NOT joined: the API's ExportReportDto declares this as a real
+        // string[] (`@IsArray()`, no comma-string Transform) since it only
+        // ever travels in the POST /reports/export JSON body, unlike
+        // goalIds/taskIds above which are shared with GET query-param
+        // report endpoints and need the comma-string wire format there.
+        excludeEntryIds: params.excludeEntryIds,
       }
       const res = await reportsApi.exportReport(preparedParams)
       return res.data

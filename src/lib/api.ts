@@ -342,9 +342,14 @@ export interface ExportReportParams extends ReportFilters {
   clientName?: string
   projectName?: string
   notes?: string
-  // Comma-separated time entry ids to leave out of this export only,
-  // matching the goalIds/taskIds comma-separated convention above.
-  excludeEntryIds?: string
+  // A real array, NOT comma-separated like goalIds/taskIds above: those are
+  // shared with GET query-param report endpoints via ReportFiltersDto and
+  // parsed server-side accordingly, but excludeEntryIds only exists on the
+  // POST /reports/export body (report-filters.dto.ts's ExportReportDto),
+  // declared there as `@IsArray() @IsString({each:true}) excludeEntryIds?:
+  // string[]` with no comma-string Transform — sending a joined string
+  // fails that validation outright.
+  excludeEntryIds?: string[]
 }
 
 // Tasks API
