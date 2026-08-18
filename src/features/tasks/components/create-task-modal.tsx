@@ -4,7 +4,6 @@ import { SearchableSelect } from '@/components/ui/searchable-select'
 
 import { CreateTaskForm, Goal, ScheduleBlock, Task } from '@/features/tasks/utils/types'
 
-import { getLocalDateString } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -114,13 +113,8 @@ export function CreateTaskModal({
       // Pre-fill from default goal
       if (defaultGoalId) {
         const selectedGoal = goals.find((g) => g.id === defaultGoalId)
-        if (selectedGoal) {
-          if (selectedGoal.category) {
-            initialForm.category = selectedGoal.category
-          }
-
-          const todayDate = getLocalDateString()
-          initialForm.dueDate = todayDate
+        if (selectedGoal && selectedGoal.category) {
+          initialForm.category = selectedGoal.category
         }
       }
 
