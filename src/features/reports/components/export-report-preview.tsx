@@ -20,6 +20,9 @@ export interface ExportReportPreviewProps {
   includeBillable: boolean
   showScheduleContext: boolean
   includeTaskNotes: boolean
+  /** Ids of entries excluded from just the next export (this session only). */
+  excludedEntryIds?: Set<string>
+  onToggleExcludedEntry?: (entryId: string) => void
 }
 
 export function ExportReportPreview({
@@ -28,6 +31,8 @@ export function ExportReportPreview({
   includeBillable,
   showScheduleContext,
   includeTaskNotes,
+  excludedEntryIds,
+  onToggleExcludedEntry,
 }: ExportReportPreviewProps) {
   const detailedQuery = useDetailedReportQuery(filters, { enabled: viewType === 'detailed' })
   const summaryQuery = useSummaryReportQuery(filters, { enabled: viewType === 'summary' })
@@ -61,6 +66,8 @@ export function ExportReportPreview({
           showBillable={includeBillable}
           showScheduleContext={showScheduleContext}
           includeTaskNotes={includeTaskNotes}
+          excludedEntryIds={excludedEntryIds}
+          onToggleExcludedEntry={onToggleExcludedEntry}
         />
       </div>
     )

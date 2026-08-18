@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { format, parseISO } from 'date-fns'
-import { ChevronDown, ChevronRight, Clock, FileText, Calendar, Pencil } from 'lucide-react'
+import { ChevronDown, ChevronRight, Clock, FileText, Calendar, Pencil, EyeOff, Eye } from 'lucide-react'
 
 import type { DailyBreakdown, DetailedTimeEntry } from '@/features/reports/utils/types'
 import { EditTimeEntryModal } from '@/features/time-tracker/components/edit-time-entry-modal'
@@ -29,6 +29,9 @@ interface DetailedReportViewProps {
   showBillable?: boolean
   showScheduleContext?: boolean
   includeTaskNotes?: boolean
+  /** Ids of entries excluded from just the next export (this session only). */
+  excludedEntryIds?: Set<string>
+  onToggleExcludedEntry?: (entryId: string) => void
 }
 
 export function DetailedReportView({
@@ -38,6 +41,8 @@ export function DetailedReportView({
   showBillable = false,
   showScheduleContext = false,
   includeTaskNotes = false,
+  excludedEntryIds,
+  onToggleExcludedEntry,
 }: DetailedReportViewProps) {
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set(dailyBreakdown.map((d) => d.date)))
   const [entryToEdit, setEntryToEdit] = useState<TimeEntry | null>(null)
@@ -123,7 +128,7 @@ export function DetailedReportView({
       </div>
 
       {/* Controls */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={expandAll}
@@ -138,6 +143,17 @@ export function DetailedReportView({
         >
           Collapse All
         </button>
+        {onToggleExcludedEntry && (
+          <span className="text-xs text-gray-500">
+            <EyeOff className="mr-1 inline h-3 w-3 align-text-bottom" />
+            Hide an entry to leave it out of your next export only — it stays in your data
+            {excludedEntryIds && excludedEntryIds.size > 0 && (
+              <span className="ml-1 font-semibold text-zinc-900">
+                ({excludedEntryIds.size} hidden)
+              </span>
+            )}
+          </span>
+        )}
       </div>
 
       {/* Daily Breakdown - Spreadsheet Style */}
@@ -184,6 +200,8 @@ export function DetailedReportView({
                     showScheduleContext={showScheduleContext}
                     includeTaskNotes={includeTaskNotes}
                     onEdit={() => openEditFor(entry)}
+                    isExcluded={excludedEntryIds?.has(entry.id) ?? false}
+                    onToggleExcluded={onToggleExcludedEntry ? () => onToggleExcludedEntry(entry.id) : undefined}
                   />
                 ))}
                 {/* Daily Subtotal */}
@@ -222,18 +240,27 @@ function EntryRow({
   showScheduleContext,
   includeTaskNotes,
   onEdit,
+  isExcluded,
+  onToggleExcluded,
 }: {
   entry: DetailedTimeEntry
   showScheduleContext: boolean
   includeTaskNotes?: boolean
   onEdit: () => void
+  isExcluded?: boolean
+  onToggleExcluded?: () => void
 }) {
   const startTime = entry.startedAt ? format(parseISO(entry.startedAt), 'h:mm a') : '-'
   const endTime = entry.endedAt ? format(parseISO(entry.endedAt), 'h:mm a') : '-'
   const hasScheduleBlock = showScheduleContext && entry.scheduleBlock && entry.scheduleBlock.title
 
   return (
-    <div className="group/row relative grid grid-cols-1 gap-2 px-4 py-3 transition-colors hover:bg-gray-50 sm:grid-cols-12 sm:items-center sm:gap-0">
+    <div
+      className={cn(
+        'group/row relative grid grid-cols-1 gap-2 px-4 py-3 transition-colors hover:bg-gray-50 sm:grid-cols-12 sm:items-center sm:gap-0',
+        isExcluded && 'bg-gray-50/80 opacity-60',
+      )}
+    >
       {/* Time */}
       <div className="col-span-2 flex items-center gap-1 font-mono text-sm text-gray-600">
         <Clock className="h-3 w-3 sm:hidden" />
@@ -257,6 +284,15 @@ function EntryRow({
         )}
         {entry.task && entry.task.title !== entry.taskName && (
           <div className="text-xs text-gray-500">{entry.task.title}</div>
+        )}
+        {isExcluded && (
+          <div
+            title="This entry stays in your data — it's only left out of your next export"
+            className="mt-1 inline-flex items-center gap-1 rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-gray-600"
+          >
+            <EyeOff className="h-2.5 w-2.5" />
+            Hidden from export
+          </div>
         )}
         {/* Schedule Block Badge */}
         {hasScheduleBlock && (
@@ -320,19 +356,44 @@ function EntryRow({
         </div>
       )}
 
-      {/* Edit button. Absolute-positioned so it overlays the rightmost
+      {/* Row actions. Absolute-positioned so they overlay the rightmost
           column without needing to reshuffle the 12-column grid, and
-          revealed on row hover so it doesn't add visual noise to the
+          revealed on row hover so they don't add visual noise to the
           read-only report layout. Always visible on touch (sm:opacity-0). */}
-      <button
-        type="button"
-        onClick={onEdit}
-        title="Edit this entry"
-        aria-label={`Edit entry "${entry.taskName}"`}
-        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md border border-zinc-200 bg-white p-1.5 text-zinc-600 opacity-100 shadow-sm transition-all hover:border-[#f2cc0d] hover:text-[#8a7307] sm:opacity-0 sm:group-hover/row:opacity-100"
-      >
-        <Pencil className="h-3.5 w-3.5" />
-      </button>
+      <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1 opacity-100 transition-all sm:opacity-0 sm:group-hover/row:opacity-100">
+        {onToggleExcluded && (
+          <button
+            type="button"
+            onClick={onToggleExcluded}
+            title={
+              isExcluded
+                ? 'Include this entry in your next export again'
+                : 'Leave this entry out of your next export only — it stays in your data'
+            }
+            aria-label={
+              isExcluded
+                ? `Include entry "${entry.taskName}" in the next export`
+                : `Exclude entry "${entry.taskName}" from the next export`
+            }
+            aria-pressed={isExcluded}
+            className={cn(
+              'rounded-md border border-zinc-200 bg-white p-1.5 shadow-sm transition-colors hover:border-[#f2cc0d] hover:text-[#8a7307]',
+              isExcluded ? 'text-[#8a7307]' : 'text-zinc-600',
+            )}
+          >
+            {isExcluded ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onEdit}
+          title="Edit this entry"
+          aria-label={`Edit entry "${entry.taskName}"`}
+          className="rounded-md border border-zinc-200 bg-white p-1.5 text-zinc-600 shadow-sm transition-colors hover:border-[#f2cc0d] hover:text-[#8a7307]"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
+      </div>
     </div>
   )
 }

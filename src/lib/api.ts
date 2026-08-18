@@ -342,6 +342,9 @@ export interface ExportReportParams extends ReportFilters {
   clientName?: string
   projectName?: string
   notes?: string
+  // Comma-separated time entry ids to leave out of this export only,
+  // matching the goalIds/taskIds comma-separated convention above.
+  excludeEntryIds?: string
 }
 
 // Tasks API

@@ -143,6 +143,7 @@ export function useExportReportMutation() {
         ...params,
         goalIds: params.goalIds?.join(','),
         taskIds: params.taskIds?.join(','),
+        excludeEntryIds: params.excludeEntryIds?.join(','),
       }
       const res = await reportsApi.exportReport(preparedParams)
       return res.data
