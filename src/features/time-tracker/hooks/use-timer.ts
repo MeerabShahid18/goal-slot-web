@@ -207,6 +207,17 @@ export function useTimer() {
     }
   }, [effectiveTimerState, effectiveStartTimestamp, effectivePausedElapsedTime])
 
+  // Guards the rollback below against overlapping start() calls - e.g. the
+  // confirmation dialog's handleDiscardAndContinue fires reset() then start()
+  // for a new task without awaiting the first, or a user double-clicks Start
+  // before the first request resolves. Each call claims the next number
+  // before it fires its request; a failure only rolls back local state if it
+  // is still the most recent call by the time its response comes back. Without
+  // this, a slow, older request failing after a newer one already succeeded
+  // would wipe the newer (legitimate) running session - the same class of bug
+  // this fix exists to close, just via a different path.
+  const startRequestSeqRef = useRef(0)
+
   const start = useCallback(
     (
       task: string,
@@ -220,6 +231,8 @@ export function useTimer() {
       // session that confirmation dialog just resolved.
       takeOver?: boolean,
     ) => {
+      const requestSeq = ++startRequestSeqRef.current
+
       // Optimistic: the button should feel instant in the browser that
       // pressed it, same as before this hook talked to the server at all.
       localStart(task, taskId, category, goalId, scheduleBlockId)
@@ -233,15 +246,32 @@ export function useTimer() {
           takeOver,
         })
         .catch((err) => {
-          // 409 without takeOver: something is already running — most
-          // likely this same account starting a session in two places
-          // within the same instant. The server's row won; drop the local
-          // optimistic one rather than let this browser show a second,
-          // fictitious timer.
+          // A newer start() has since claimed the store - this failure is
+          // stale and must not touch state a later call already owns.
+          if (requestSeq !== startRequestSeqRef.current) return
+
+          // Any failure here means the server never created a session row —
+          // the optimistic localStart() above is the only place this timer
+          // exists. Previously only 409 rolled that back; every other status
+          // (403 daily-entry plan limit, 400 bad goal/task/scheduleBlock
+          // attribution, a dropped request, ...) fell through silently, so
+          // the UI kept showing "running" - accurately, from this browser's
+          // point of view - for as long as the user stayed on the page. The
+          // reconciliation effect above then wipes that same local state the
+          // moment it gets a real answer from the server (on the next
+          // refresh, most commonly), because by then it genuinely is stale:
+          // nothing was ever running. That silent round trip is what reads
+          // to the user as "I started a timer, walked away, and it was gone
+          // when I came back" with no error ever shown. Roll back immediately
+          // and say why, so the failure is visible at the moment it happens
+          // instead of a mysteriously vanished session later.
+          localReset()
           if (err?.response?.status === 409) {
-            localReset()
             toast.error('A session was already running — showing that one instead.')
+            return
           }
+          const message = err?.response?.data?.message
+          toast.error(typeof message === 'string' ? message : 'Could not start the timer — please try again.')
         })
         .finally(() => void invalidateSession())
     },
