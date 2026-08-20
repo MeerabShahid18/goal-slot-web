@@ -6,24 +6,31 @@ import { scheduleQueries } from './queries'
 const config = (idempotencyKey: string) => ({ headers: { 'Idempotency-Key': idempotencyKey } })
 
 // Creating a block across multiple selected days (schedule-block-modal.tsx)
-// sends one request per day, but the whole batch only ever gets ONE
-// idempotency key from useOfflineMutation (minted once per mutate() call).
-// Posting every day's request with that same key made the server's
-// IdempotencyInterceptor see N requests reusing one key with N different
-// bodies: whichever landed second, by the time its own key lookup ran,
-// either raced the first into a duplicate-looking window or (once the
-// first request's record had already been stored) got hard-rejected with
-// "idempotency_key_reuse_with_different_payload" — so multi-day creates
-// past the first day could silently fail depending on timing. Deriving a
-// distinct, deterministic key per day (stable across an outbox replay,
-// since it's derived from the same base key + that day's index) gives each
-// day's create its own idempotency slot instead of N requests fighting over
-// one.
+// used to send one request per day via Promise.all. That has two separate
+// failure modes, both fixed by routing the whole group through the atomic
+// POST /schedule/batch endpoint (goal-slot-api's ScheduleService.createBatch)
+// as ONE request instead:
+//
+//   1. No atomicity: Promise.all fails fast on the first rejected day, but
+//      the other requests were already in flight and completed
+//      independently — there was no transaction spanning the group. A
+//      genuine conflict on one day 400'd, the user saw ONE error and
+//      assumed nothing happened, while up to N-1 blocks were silently
+//      created. The batch endpoint checks every day for a conflict BEFORE
+//      inserting any of them, inside one transaction, so a conflict rolls
+//      back the whole group.
+//   2. Idempotency: the whole batch only ever got ONE idempotency key from
+//      useOfflineMutation (minted once per mutate() call), so N requests
+//      sharing one key raced the server's IdempotencyInterceptor. A single
+//      request naturally has a single key, closing that too.
+//
+// Single-day creates (array of length 1) also go through this same
+// operation/endpoint rather than branching client-side — one code path,
+// and the batch endpoint's all-or-nothing semantics degrade correctly to
+// "the one day" when there's only one.
 registerOperation<Record<string, unknown>[], unknown>('schedule.createMany', {
   execute: (payloads, key) =>
-    Promise.all(
-      payloads.map((payload, index) => api.post('/schedule', payload, config(`${key}:${index}`)).then((r) => r.data)),
-    ),
+    api.post('/schedule/batch', { blocks: payloads }, config(key)).then((r) => r.data),
   invalidateKeys: [scheduleQueries.weeklyKey()],
 })
 

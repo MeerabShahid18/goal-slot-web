@@ -194,7 +194,15 @@ export function ScheduleBlockModal({
 
       onClose()
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to save')
+      // useCreateScheduleBlocks (use-schedule-mutations.ts) now passes its
+      // own messages.error to useOfflineMutation, so a multi-/single-day
+      // create failure already shows one specific toast (e.g. which day
+      // conflicted) from the hook itself. Toasting again here would double
+      // it. useUpdateScheduleBlock doesn't set messages.error, so the update
+      // path still needs its own toast.
+      if (block) {
+        toast.error(error.response?.data?.message || 'Failed to save')
+      }
     }
   }
 
