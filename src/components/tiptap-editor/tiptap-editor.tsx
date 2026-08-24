@@ -4,8 +4,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import Color from '@tiptap/extension-color'
+import Heading from '@tiptap/extension-heading'
 import Highlight from '@tiptap/extension-highlight'
 import Link from '@tiptap/extension-link'
+import Paragraph from '@tiptap/extension-paragraph'
 import Placeholder from '@tiptap/extension-placeholder'
 import { Table } from '@tiptap/extension-table'
 import TableCell from '@tiptap/extension-table-cell'
@@ -17,13 +19,11 @@ import TextAlign from '@tiptap/extension-text-align'
 import { TextStyle } from '@tiptap/extension-text-style'
 import Typography from '@tiptap/extension-typography'
 import Underline from '@tiptap/extension-underline'
+import { TextSelection } from '@tiptap/pm/state'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { BubbleMenu } from '@tiptap/react/menus'
 import StarterKit from '@tiptap/starter-kit'
 import { common, createLowlight } from 'lowlight'
-import { TextSelection } from '@tiptap/pm/state'
-import Paragraph from '@tiptap/extension-paragraph'
-import Heading from '@tiptap/extension-heading'
 
 import './tiptap-editor.css'
 
@@ -238,11 +238,7 @@ function handleListBackspace(ed: any, event: KeyboardEvent): boolean {
 // covers the WHOLE selection, leaving sinkable items unmoved. Iterating
 // in reverse order keeps positions before the current item valid as
 // we go. Returns true if any item moved.
-function sinkOrLiftMultiSelection(
-  ed: any,
-  itemType: 'listItem' | 'taskItem',
-  direction: 'sink' | 'lift',
-): boolean {
+function sinkOrLiftMultiSelection(ed: any, itemType: 'listItem' | 'taskItem', direction: 'sink' | 'lift'): boolean {
   const state = ed.state
   const { from, to } = state.selection
 
@@ -277,7 +273,11 @@ function sinkOrLiftMultiSelection(
   for (let i = positions.length - 1; i >= 0; i--) {
     const pos = positions[i]
     const cmd = direction === 'sink' ? 'sinkListItem' : 'liftListItem'
-    const ok = ed.chain().setTextSelection(pos + 1)[cmd](itemType).run()
+    const ok = ed
+      .chain()
+      .setTextSelection(pos + 1)
+      [cmd](itemType)
+      .run()
     if (ok) moved = true
   }
 
@@ -676,7 +676,6 @@ export function TiptapEditor({
           }
         }
       }
-
     }
 
     // Use capture phase to intercept before ProseMirror.
@@ -752,6 +751,7 @@ export function TiptapEditor({
         <div className="tiptap-toolbar">
           <div className="toolbar-group">
             <button
+              type="button"
               onClick={() => editor.chain().focus().undo().run()}
               disabled={!editor.can().undo()}
               className="toolbar-btn"
@@ -760,6 +760,7 @@ export function TiptapEditor({
               <Undo className="h-4 w-4" />
             </button>
             <button
+              type="button"
               onClick={() => editor.chain().focus().redo().run()}
               disabled={!editor.can().redo()}
               className="toolbar-btn"
@@ -773,6 +774,7 @@ export function TiptapEditor({
 
           <div className="toolbar-group">
             <button
+              type="button"
               onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
               className={cn('toolbar-btn', editor.isActive('heading', { level: 1 }) && 'is-active')}
               title="Heading 1"
@@ -780,6 +782,7 @@ export function TiptapEditor({
               <Heading1 className="h-4 w-4" />
             </button>
             <button
+              type="button"
               onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
               className={cn('toolbar-btn', editor.isActive('heading', { level: 2 }) && 'is-active')}
               title="Heading 2"
@@ -787,6 +790,7 @@ export function TiptapEditor({
               <Heading2 className="h-4 w-4" />
             </button>
             <button
+              type="button"
               onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
               className={cn('toolbar-btn', editor.isActive('heading', { level: 3 }) && 'is-active')}
               title="Heading 3"
@@ -799,6 +803,7 @@ export function TiptapEditor({
 
           <div className="toolbar-group">
             <button
+              type="button"
               onClick={() => editor.chain().focus().toggleBold().run()}
               className={cn('toolbar-btn', editor.isActive('bold') && 'is-active')}
               title="Bold (Ctrl+B)"
@@ -806,6 +811,7 @@ export function TiptapEditor({
               <Bold className="h-4 w-4" />
             </button>
             <button
+              type="button"
               onClick={() => editor.chain().focus().toggleItalic().run()}
               className={cn('toolbar-btn', editor.isActive('italic') && 'is-active')}
               title="Italic (Ctrl+I)"
@@ -813,6 +819,7 @@ export function TiptapEditor({
               <Italic className="h-4 w-4" />
             </button>
             <button
+              type="button"
               onClick={() => editor.chain().focus().toggleUnderline().run()}
               className={cn('toolbar-btn', editor.isActive('underline') && 'is-active')}
               title="Underline (Ctrl+U)"
@@ -820,6 +827,7 @@ export function TiptapEditor({
               <UnderlineIcon className="h-4 w-4" />
             </button>
             <button
+              type="button"
               onClick={() => editor.chain().focus().toggleStrike().run()}
               className={cn('toolbar-btn', editor.isActive('strike') && 'is-active')}
               title="Strikethrough"
@@ -827,6 +835,7 @@ export function TiptapEditor({
               <Strikethrough className="h-4 w-4" />
             </button>
             <button
+              type="button"
               onClick={() => editor.chain().focus().toggleCode().run()}
               className={cn('toolbar-btn', editor.isActive('code') && 'is-active')}
               title="Inline Code"
@@ -834,6 +843,7 @@ export function TiptapEditor({
               <Code className="h-4 w-4" />
             </button>
             <button
+              type="button"
               onClick={() => editor.chain().focus().toggleHighlight().run()}
               className={cn('toolbar-btn', editor.isActive('highlight') && 'is-active')}
               title="Highlight"
@@ -846,6 +856,7 @@ export function TiptapEditor({
 
           <div className="toolbar-group">
             <button
+              type="button"
               onClick={() => editor.chain().focus().clearIndent().toggleBulletList().run()}
               className={cn('toolbar-btn', editor.isActive('bulletList') && 'is-active')}
               title="Bullet List"
@@ -853,6 +864,7 @@ export function TiptapEditor({
               <List className="h-4 w-4" />
             </button>
             <button
+              type="button"
               onClick={() => editor.chain().focus().clearIndent().toggleOrderedList().run()}
               className={cn('toolbar-btn', editor.isActive('orderedList') && 'is-active')}
               title="Numbered List"
@@ -860,6 +872,7 @@ export function TiptapEditor({
               <ListOrdered className="h-4 w-4" />
             </button>
             <button
+              type="button"
               onClick={() => editor.chain().focus().clearIndent().toggleTaskList().run()}
               className={cn('toolbar-btn', editor.isActive('taskList') && 'is-active')}
               title="Task List"
@@ -872,6 +885,7 @@ export function TiptapEditor({
 
           <div className="toolbar-group">
             <button
+              type="button"
               onClick={() => editor.chain().focus().toggleBlockquote().run()}
               className={cn('toolbar-btn', editor.isActive('blockquote') && 'is-active')}
               title="Quote"
@@ -879,6 +893,7 @@ export function TiptapEditor({
               <Quote className="h-4 w-4" />
             </button>
             <button
+              type="button"
               onClick={() => editor.chain().focus().toggleCodeBlock().run()}
               className={cn('toolbar-btn', editor.isActive('codeBlock') && 'is-active')}
               title="Code Block"
@@ -886,6 +901,7 @@ export function TiptapEditor({
               <Code className="h-4 w-4" />
             </button>
             <button
+              type="button"
               onClick={() => editor.chain().focus().setHorizontalRule().run()}
               className="toolbar-btn"
               title="Divider"
@@ -897,17 +913,18 @@ export function TiptapEditor({
           <div className="toolbar-divider" />
 
           <div className="toolbar-group">
-            <button onClick={addImage} className="toolbar-btn" title="Add Image">
+            <button type="button" onClick={addImage} className="toolbar-btn" title="Add Image">
               <ImageIcon className="h-4 w-4" />
             </button>
             <button
+              type="button"
               onClick={setLink}
               className={cn('toolbar-btn', editor.isActive('link') && 'is-active')}
               title="Add Link"
             >
               <LinkIcon className="h-4 w-4" />
             </button>
-            <button onClick={addTable} className="toolbar-btn" title="Add Table">
+            <button type="button" onClick={addTable} className="toolbar-btn" title="Add Table">
               <TableIcon className="h-4 w-4" />
             </button>
           </div>
@@ -916,6 +933,7 @@ export function TiptapEditor({
 
           <div className="toolbar-group">
             <button
+              type="button"
               onClick={() => editor.chain().focus().setTextAlign('left').run()}
               className={cn('toolbar-btn', editor.isActive({ textAlign: 'left' }) && 'is-active')}
               title="Align Left"
@@ -923,6 +941,7 @@ export function TiptapEditor({
               <AlignLeft className="h-4 w-4" />
             </button>
             <button
+              type="button"
               onClick={() => editor.chain().focus().setTextAlign('center').run()}
               className={cn('toolbar-btn', editor.isActive({ textAlign: 'center' }) && 'is-active')}
               title="Align Center"
@@ -930,6 +949,7 @@ export function TiptapEditor({
               <AlignCenter className="h-4 w-4" />
             </button>
             <button
+              type="button"
               onClick={() => editor.chain().focus().setTextAlign('right').run()}
               className={cn('toolbar-btn', editor.isActive({ textAlign: 'right' }) && 'is-active')}
               title="Align Right"
@@ -939,7 +959,12 @@ export function TiptapEditor({
           </div>
 
           <div className="toolbar-group ml-auto">
-            <button onClick={copyAsHTML} className={cn('toolbar-btn', isCopied && 'is-copied')} title="Copy as HTML">
+            <button
+              type="button"
+              onClick={copyAsHTML}
+              className={cn('toolbar-btn', isCopied && 'is-copied')}
+              title="Copy as HTML"
+            >
               {isCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
             </button>
           </div>
@@ -950,42 +975,48 @@ export function TiptapEditor({
       {editor && editable && (
         <BubbleMenu editor={editor} className="bubble-menu">
           <button
+            type="button"
             onClick={() => editor.chain().focus().toggleBold().run()}
             className={cn('bubble-btn', editor.isActive('bold') && 'is-active')}
           >
             <Bold className="h-4 w-4" />
           </button>
           <button
+            type="button"
             onClick={() => editor.chain().focus().toggleItalic().run()}
             className={cn('bubble-btn', editor.isActive('italic') && 'is-active')}
           >
             <Italic className="h-4 w-4" />
           </button>
           <button
+            type="button"
             onClick={() => editor.chain().focus().toggleUnderline().run()}
             className={cn('bubble-btn', editor.isActive('underline') && 'is-active')}
           >
             <UnderlineIcon className="h-4 w-4" />
           </button>
           <button
+            type="button"
             onClick={() => editor.chain().focus().toggleStrike().run()}
             className={cn('bubble-btn', editor.isActive('strike') && 'is-active')}
           >
             <Strikethrough className="h-4 w-4" />
           </button>
           <button
+            type="button"
             onClick={() => editor.chain().focus().toggleCode().run()}
             className={cn('bubble-btn', editor.isActive('code') && 'is-active')}
           >
             <Code className="h-4 w-4" />
           </button>
           <button
+            type="button"
             onClick={() => editor.chain().focus().toggleHighlight().run()}
             className={cn('bubble-btn', editor.isActive('highlight') && 'is-active')}
           >
             <Highlighter className="h-4 w-4" />
           </button>
-          <button onClick={setLink} className={cn('bubble-btn', editor.isActive('link') && 'is-active')}>
+          <button type="button" onClick={setLink} className={cn('bubble-btn', editor.isActive('link') && 'is-active')}>
             <LinkIcon className="h-4 w-4" />
           </button>
         </BubbleMenu>
@@ -997,6 +1028,7 @@ export function TiptapEditor({
           <div className="table-controls-group">
             <span className="table-controls-label">Row</span>
             <button
+              type="button"
               onClick={() => editor.chain().focus().addRowBefore().run()}
               className="table-controls-btn"
               title="Add row above"
@@ -1005,6 +1037,7 @@ export function TiptapEditor({
               <Plus className="h-3 w-3" />
             </button>
             <button
+              type="button"
               onClick={() => editor.chain().focus().addRowAfter().run()}
               className="table-controls-btn"
               title="Add row below"
@@ -1013,6 +1046,7 @@ export function TiptapEditor({
               <Plus className="h-3 w-3" />
             </button>
             <button
+              type="button"
               onClick={() => editor.chain().focus().deleteRow().run()}
               className="table-controls-btn table-controls-btn-danger"
               title="Delete row"
@@ -1024,6 +1058,7 @@ export function TiptapEditor({
           <div className="table-controls-group">
             <span className="table-controls-label">Column</span>
             <button
+              type="button"
               onClick={() => editor.chain().focus().addColumnBefore().run()}
               className="table-controls-btn"
               title="Add column left"
@@ -1032,6 +1067,7 @@ export function TiptapEditor({
               <Plus className="h-3 w-3" />
             </button>
             <button
+              type="button"
               onClick={() => editor.chain().focus().addColumnAfter().run()}
               className="table-controls-btn"
               title="Add column right"
@@ -1040,6 +1076,7 @@ export function TiptapEditor({
               <Plus className="h-3 w-3" />
             </button>
             <button
+              type="button"
               onClick={() => editor.chain().focus().deleteColumn().run()}
               className="table-controls-btn table-controls-btn-danger"
               title="Delete column"
@@ -1049,6 +1086,7 @@ export function TiptapEditor({
           </div>
           <div className="table-controls-divider" />
           <button
+            type="button"
             onClick={() => editor.chain().focus().deleteTable().run()}
             className="table-controls-btn table-controls-btn-danger"
             title="Delete table"

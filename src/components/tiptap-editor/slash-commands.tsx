@@ -1,32 +1,26 @@
 'use client'
 
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useState } from 'react'
+
 import { Extension } from '@tiptap/core'
 import { ReactRenderer } from '@tiptap/react'
 import Suggestion from '@tiptap/suggestion'
-import tippy, { Instance as TippyInstance } from 'tippy.js'
 import {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useState,
-} from 'react'
-
-import {
-  Type,
+  AlertCircle,
+  CheckSquare,
+  Code,
   Heading1,
   Heading2,
   Heading3,
+  ImageIcon,
   List,
   ListOrdered,
-  CheckSquare,
-  Quote,
-  Code,
   Minus,
-  ImageIcon,
+  Quote,
   Table,
-  AlertCircle,
+  Type,
 } from 'lucide-react'
+import tippy, { Instance as TippyInstance } from 'tippy.js'
 
 import { cn } from '@/lib/utils'
 
@@ -123,12 +117,7 @@ const commands: CommandItem[] = [
     description: 'Make writing stand out.',
     icon: <AlertCircle className="h-5 w-5" />,
     command: ({ editor, range }) => {
-      editor
-        .chain()
-        .focus()
-        .deleteRange(range)
-        .toggleBlockquote()
-        .run()
+      editor.chain().focus().deleteRange(range).toggleBlockquote().run()
     },
   },
   {
@@ -148,7 +137,11 @@ const commands: CommandItem[] = [
           reader.onload = (e) => {
             const result = e.target?.result
             if (typeof result === 'string') {
-              editor.chain().focus().insertContent({ type: 'image', attrs: { src: result } }).run()
+              editor
+                .chain()
+                .focus()
+                .insertContent({ type: 'image', attrs: { src: result } })
+                .run()
             }
           }
           reader.readAsDataURL(file)
@@ -180,75 +173,67 @@ interface CommandListRef {
   onKeyDown: (props: { event: KeyboardEvent }) => boolean
 }
 
-const CommandList = forwardRef<CommandListRef, CommandListProps>(
-  ({ items, command }, ref) => {
-    const [selectedIndex, setSelectedIndex] = useState(0)
+const CommandList = forwardRef<CommandListRef, CommandListProps>(({ items, command }, ref) => {
+  const [selectedIndex, setSelectedIndex] = useState(0)
 
-    const selectItem = useCallback(
-      (index: number) => {
-        const item = items[index]
-        if (item) {
-          command(item)
-        }
-      },
-      [items, command]
-    )
+  const selectItem = useCallback(
+    (index: number) => {
+      const item = items[index]
+      if (item) {
+        command(item)
+      }
+    },
+    [items, command],
+  )
 
-    useImperativeHandle(ref, () => ({
-      onKeyDown: ({ event }) => {
-        if (event.key === 'ArrowUp') {
-          setSelectedIndex((prev) => (prev + items.length - 1) % items.length)
-          return true
-        }
+  useImperativeHandle(ref, () => ({
+    onKeyDown: ({ event }) => {
+      if (event.key === 'ArrowUp') {
+        setSelectedIndex((prev) => (prev + items.length - 1) % items.length)
+        return true
+      }
 
-        if (event.key === 'ArrowDown') {
-          setSelectedIndex((prev) => (prev + 1) % items.length)
-          return true
-        }
+      if (event.key === 'ArrowDown') {
+        setSelectedIndex((prev) => (prev + 1) % items.length)
+        return true
+      }
 
-        if (event.key === 'Enter') {
-          selectItem(selectedIndex)
-          return true
-        }
+      if (event.key === 'Enter') {
+        selectItem(selectedIndex)
+        return true
+      }
 
-        return false
-      },
-    }))
+      return false
+    },
+  }))
 
-    useEffect(() => {
-      setSelectedIndex(0)
-    }, [items])
+  useEffect(() => {
+    setSelectedIndex(0)
+  }, [items])
 
-    if (items.length === 0) {
-      return (
-        <div className="slash-menu-empty">
-          No results
-        </div>
-      )
-    }
-
-    return (
-      <div className="slash-menu">
-        {items.map((item, index) => (
-          <button
-            key={item.title}
-            onClick={() => selectItem(index)}
-            className={cn(
-              'slash-menu-item',
-              index === selectedIndex && 'is-selected'
-            )}
-          >
-            <div className="slash-menu-icon">{item.icon}</div>
-            <div className="slash-menu-content">
-              <div className="slash-menu-title">{item.title}</div>
-              <div className="slash-menu-description">{item.description}</div>
-            </div>
-          </button>
-        ))}
-      </div>
-    )
+  if (items.length === 0) {
+    return <div className="slash-menu-empty">No results</div>
   }
-)
+
+  return (
+    <div className="slash-menu">
+      {items.map((item, index) => (
+        <button
+          type="button"
+          key={item.title}
+          onClick={() => selectItem(index)}
+          className={cn('slash-menu-item', index === selectedIndex && 'is-selected')}
+        >
+          <div className="slash-menu-icon">{item.icon}</div>
+          <div className="slash-menu-content">
+            <div className="slash-menu-title">{item.title}</div>
+            <div className="slash-menu-description">{item.description}</div>
+          </div>
+        </button>
+      ))}
+    </div>
+  )
+})
 
 CommandList.displayName = 'CommandList'
 
@@ -272,9 +257,7 @@ export const SlashCommands = Extension.create({
         editor: this.editor,
         ...this.options.suggestion,
         items: ({ query }: { query: string }) => {
-          return commands.filter((item) =>
-            item.title.toLowerCase().includes(query.toLowerCase())
-          )
+          return commands.filter((item) => item.title.toLowerCase().includes(query.toLowerCase()))
         },
         render: () => {
           let component: ReactRenderer<CommandListRef> | null = null
