@@ -9,7 +9,7 @@ import { ScheduleGridDragLayer } from '@/features/schedule/components/schedule-g
 import { DraggableBlock } from '@/features/schedule/components/schedule-grid/draggable-block'
 import { useScheduleDrag } from '@/features/schedule/hooks/use-schedule-drag'
 import { COLUMN_HEIGHT, DAY_START_MIN, PX_PER_MIN, SLOT_MIN } from '@/features/schedule/utils/constants'
-import { DraftSelection, ScheduleBlock, WeekSchedule } from '@/features/schedule/utils/types'
+import { DraftSelection, ScheduleBlock, ScheduleDensity, WeekSchedule } from '@/features/schedule/utils/types'
 import { snapMinutes } from '@/features/schedule/utils/utils'
 import { Plus } from 'lucide-react'
 
@@ -23,6 +23,7 @@ type ScheduleGridProps = {
   onEdit: (block: ScheduleBlock) => void
   onViewDetail: (block: ScheduleBlock) => void
   draftKey: number
+  density: ScheduleDensity
 }
 
 export function ScheduleGrid({
@@ -32,6 +33,7 @@ export function ScheduleGrid({
   onEdit,
   onViewDetail,
   draftKey,
+  density,
 }: ScheduleGridProps) {
   const { activeId, preview, pendingDraft, setPendingDraft, handleDragStart, handleDragMove, handleDragEnd } =
     useScheduleDrag({ weekSchedule, draftKey })
@@ -113,6 +115,7 @@ export function ScheduleGrid({
         isActiveDrag={activeId === block.id}
         onEdit={onEdit}
         onViewDetail={onViewDetail}
+        density={density}
       />
     )
   }
@@ -120,11 +123,21 @@ export function ScheduleGrid({
   const totalBlocks = Object.values(weekSchedule).reduce((sum, blocks) => sum + blocks.length, 0)
   const isEmpty = totalBlocks === 0
 
+  // 'compact' keeps the original ~129px-per-day-column floor (960px total)
+  // so the whole week fits with minimal horizontal scroll. 'comfortable'
+  // raises the floor to ~191px per column (1400px total) — enough for most
+  // real block titles to fit without truncating. overflow-x-auto on the
+  // outer wrapper means both degrade to horizontal scroll on narrow
+  // viewports rather than ever squeezing columns below their floor.
+  const gridMinWidthClass = density === 'comfortable' ? 'min-w-[1400px]' : 'min-w-[960px]'
+
   return (
     <div className="overflow-x-auto">
-      <div className="relative min-w-[960px]">
+      <div className={`relative ${gridMinWidthClass}`}>
         <div className="grid grid-cols-[4rem_repeat(7,minmax(0,1fr))] border-b border-zinc-200">
-          <div className="w-16 bg-zinc-50 p-2 text-center text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Time</div>
+          <div className="w-16 bg-zinc-50 p-2 text-center text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+            Time
+          </div>
           {DAYS_OF_WEEK_FULL.map((day, index) => (
             <div
               key={day}

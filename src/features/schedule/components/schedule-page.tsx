@@ -6,21 +6,23 @@ import { useCategoriesQuery } from '@/features/categories'
 import { ClearScheduleButton } from '@/features/schedule/components/clear-schedule-button'
 import { ScheduleBlockDetailDialog } from '@/features/schedule/components/schedule-block-detail-dialog'
 import { ScheduleBlockModal } from '@/features/schedule/components/schedule-block-modal'
+import { ScheduleDensityToggle } from '@/features/schedule/components/schedule-density-toggle'
 import { ScheduleGrid } from '@/features/schedule/components/schedule-grid/schedule-grid'
 import { useDeleteScheduleBlock } from '@/features/schedule/hooks/use-schedule-mutations'
 import { useWeeklySchedule } from '@/features/schedule/hooks/use-schedule-queries'
-import { ScheduleBlock, WeekSchedule } from '@/features/schedule/utils/types'
+import { ScheduleBlock, ScheduleDensity, WeekSchedule } from '@/features/schedule/utils/types'
 import { findScheduleBlockForDateTime } from '@/features/time-tracker/utils/schedule'
 import { Clock, Eye, Plus } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 
-import { formatTime12h } from '@/lib/utils'
 import { useHasProAccess } from '@/lib/store'
+import { formatTime12h } from '@/lib/utils'
+import { useLocalStorage } from '@/hooks/use-local-storage'
 import { Button } from '@/components/ui/button'
 import { GlassCard } from '@/components/ui/glass-card'
-import { GoalFlagIcon } from '@/components/icons/goal-flag-icon'
 import { PageHeader } from '@/components/ui/page-header'
 import { PageShell } from '@/components/ui/page-shell'
+import { GoalFlagIcon } from '@/components/icons/goal-flag-icon'
 
 function fmtShort(time: string): string {
   return formatTime12h(time).replace(':00 ', ' ')
@@ -34,6 +36,11 @@ export function SchedulePage() {
   const [selectedDay, setSelectedDay] = useState<number | null>(null)
   const [presetTimes, setPresetTimes] = useState<{ startTime: string; endTime: string } | null>(null)
   const [draftKey, setDraftKey] = useState(0)
+  // Per-browser view preference (not synced to the account, matching the
+  // other client-side view toggles in this app — see tasks/reports pages).
+  // Defaults to 'comfortable': the previous fixed 960px-wide grid packed 7
+  // columns edge to edge and truncated most real titles.
+  const [density, setDensity] = useLocalStorage<ScheduleDensity>('schedule-density', 'comfortable')
   const hasProAccess = useHasProAccess()
   const { data: weekSchedule = {} as WeekSchedule, isPending: isSchedulePending } = useWeeklySchedule()
   const { data: categories = [] } = useCategoriesQuery()
@@ -100,6 +107,7 @@ export function SchedulePage() {
         description="Plan your weekly time blocks"
         actions={
           <div className="flex items-center gap-1.5">
+            <ScheduleDensityToggle value={density} onChange={setDensity} />
             <ClearScheduleButton totalBlocks={totalBlocks} />
             <Button onClick={() => handleAddBlock(1)} variant="brand" size="sm">
               <Plus className="h-3.5 w-3.5" />
@@ -138,6 +146,7 @@ export function SchedulePage() {
           onEdit={handleEdit}
           onViewDetail={handleViewDetail}
           draftKey={draftKey}
+          density={density}
         />
       </GlassCard>
 

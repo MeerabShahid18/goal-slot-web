@@ -39,3 +39,9 @@ export type DraftSelection = {
   start: number
   end: number
 }
+
+// View-density preference for the weekly schedule grid — how much
+// horizontal room each day column gets, and whether block titles wrap.
+// Orthogonal to DraggableBlock's height-based isTiny/isCompact (which is
+// about a block's own vertical space, not the grid's column width).
+export type ScheduleDensity = 'compact' | 'comfortable'
