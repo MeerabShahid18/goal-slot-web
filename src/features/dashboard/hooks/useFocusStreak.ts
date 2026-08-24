@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import { timeEntriesApi } from '@/lib/api'
 
-export const DAILY_STREAK_GOAL = 25
+export const DAILY_STREAK_GOAL = 30
 
 const STREAK_LOOKBACK_DAYS = 366
 
