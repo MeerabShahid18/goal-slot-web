@@ -32,9 +32,11 @@ export function clearWhiteboardDraft(id: string): void {
 }
 
 export function resolveWhiteboardScene(
-  id: string,
-  serverContent: ExcalidrawScene | null,
-): ExcalidrawScene | null {
+   id: string,
+   serverContent: ExcalidrawScene | null,
+ ): ExcalidrawScene | null {
   if (serverContent !== null) return serverContent
-  return loadWhiteboardDraft(id)
-}
+  const draft = loadWhiteboardDraft(id)
+  if ((draft?.elements?.length ?? 0) > 0) return draft
+  return serverContent
+ }
