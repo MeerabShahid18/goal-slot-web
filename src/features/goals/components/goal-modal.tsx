@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 
-import { useCategoriesQuery } from '@/features/categories'
+import {
+  Category,
+  CategoryModal,
+  CreateCategoryForm,
+  useCategoriesQuery,
+  useCreateCategoryMutation,
+} from '@/features/categories'
+import { WeeklyReflectionModal } from '@/features/goals/components/weekly-reflection-modal'
 import { useCreateGoalMutation, useUpdateGoalMutation } from '@/features/goals/hooks/use-goals-mutations'
 import {
   CreateGoalForm,
@@ -17,14 +24,13 @@ import { Calendar, Check, Clock, Pencil, Sparkles, Trash2, X } from 'lucide-reac
 
 import { COLOR_OPTIONS } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { ColorPicker } from '@/components/ui/color-picker'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { SearchableSelect } from '@/components/ui/searchable-select'
-import { ColorPicker } from '@/components/ui/color-picker'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { WeeklyReflectionModal } from '@/features/goals/components/weekly-reflection-modal'
 
 // TiptapEditor pulls in the full StarterKit + a dozen extension packages.
 // GoalModal is rendered unconditionally from DashboardHeader (part of the
@@ -32,13 +38,10 @@ import { WeeklyReflectionModal } from '@/features/goals/components/weekly-reflec
 // that whole editor bundle on first paint even when the user never opens
 // "New Goal". Loading it on demand keeps it out of the dashboard's initial
 // route bundle — same pattern as the whiteboard's Excalidraw lazy-load.
-const TiptapEditor = dynamic(
-  () => import('@/components/tiptap-editor/tiptap-editor').then((mod) => mod.TiptapEditor),
-  {
-    ssr: false,
-    loading: () => <div className="min-h-[280px] animate-pulse rounded-lg bg-zinc-50" />,
-  },
-)
+const TiptapEditor = dynamic(() => import('@/components/tiptap-editor/tiptap-editor').then((mod) => mod.TiptapEditor), {
+  ssr: false,
+  loading: () => <div className="min-h-[280px] animate-pulse rounded-lg bg-zinc-50" />,
+})
 
 interface GoalModalProps {
   isOpen: boolean
@@ -78,12 +81,20 @@ export function GoalModal({ isOpen, onClose, goal }: GoalModalProps) {
   const [editingLabelColor, setEditingLabelColor] = useState('')
   const [deleteLabelId, setDeleteLabelId] = useState<string | null>(null)
   const [isReflectionOpen, setIsReflectionOpen] = useState(false)
+  // Only meaningful when `categories` is empty — see the SearchableSelect's
+  // `emptyStateAction` below. A brand new account (or one that never visited
+  // category management) had no way to get past "Nothing to choose from
+  // yet." without abandoning this form; opening the same CategoryModal
+  // category-management.tsx already uses closes that dead end without a
+  // second create-category implementation to keep in sync.
+  const [isCreateCategoryOpen, setIsCreateCategoryOpen] = useState(false)
   const labelInputRef = useRef<HTMLInputElement>(null)
   const suggestionsRef = useRef<HTMLDivElement>(null)
   const createMutation = useCreateGoalMutation()
   const updateMutation = useUpdateGoalMutation()
   const updateLabelMutation = useUpdateLabelMutation()
   const deleteLabelMutation = useDeleteLabelMutation()
+  const createCategoryMutation = useCreateCategoryMutation()
   const { data: categories = [] } = useCategoriesQuery()
   const { data: existingLabels = [] } = useLabelsQuery()
 
@@ -226,6 +237,18 @@ export function GoalModal({ isOpen, onClose, goal }: GoalModalProps) {
     setDeleteLabelId(null)
   }
 
+  // Selects the new category immediately rather than leaving the user to
+  // reopen the dropdown and find it themselves — they only went looking for
+  // "Create category" because they wanted THIS goal to have one.
+  const handleCreateCategory = (data: CreateCategoryForm | Partial<Category>) => {
+    createCategoryMutation.mutate(data as CreateCategoryForm, {
+      onSuccess: (created) => {
+        setIsCreateCategoryOpen(false)
+        updateField('category', created.value)
+      },
+    })
+  }
+
   // Check if we're doing a real submit (not auto-save)
   const isSubmitting = (createMutation.isPending || updateMutation.isPending) && !isAutoSaving
 
@@ -236,12 +259,7 @@ export function GoalModal({ isOpen, onClose, goal }: GoalModalProps) {
           <div className="flex items-center justify-between gap-3 pr-8">
             <DialogTitle className="text-xl font-semibold text-zinc-900">{goal ? 'Edit Goal' : 'New Goal'}</DialogTitle>
             {goal && (
-              <Button
-                type="button"
-                variant="brand"
-                size="sm"
-                onClick={() => setIsReflectionOpen(true)}
-              >
+              <Button type="button" variant="brand" size="sm" onClick={() => setIsReflectionOpen(true)}>
                 <Sparkles className="h-3.5 w-3.5" />
                 Weekly reflection
               </Button>
@@ -278,6 +296,8 @@ export function GoalModal({ isOpen, onClose, goal }: GoalModalProps) {
                     onChange={(value) => updateField('category', value)}
                     placeholder="Select category"
                     options={categoryOptions}
+                    emptyMessage="No categories yet."
+                    emptyStateAction={{ label: 'Create category', onClick: () => setIsCreateCategoryOpen(true) }}
                   />
                 </div>
 
@@ -566,10 +586,7 @@ export function GoalModal({ isOpen, onClose, goal }: GoalModalProps) {
                 {/* Goal Color */}
                 <div>
                   <Label className="mb-1.5 block text-[10px] tracking-wider">Goal Color</Label>
-                  <ColorPicker
-                    value={form.color}
-                    onChange={(hex) => updateField('color', hex)}
-                  />
+                  <ColorPicker value={form.color} onChange={(hex) => updateField('color', hex)} />
                 </div>
               </div>
             </div>
@@ -614,6 +631,14 @@ export function GoalModal({ isOpen, onClose, goal }: GoalModalProps) {
 
       {/* Weekly Reflection Modal (only meaningful when editing an existing goal) */}
       <WeeklyReflectionModal goal={goal} open={isReflectionOpen} onOpenChange={setIsReflectionOpen} />
+
+      {/* Reuses category-management.tsx's own create form rather than a
+          second implementation — see isCreateCategoryOpen's own comment. */}
+      <CategoryModal
+        isOpen={isCreateCategoryOpen}
+        onClose={() => setIsCreateCategoryOpen(false)}
+        onSubmit={handleCreateCategory}
+      />
     </Dialog>
   )
 }
