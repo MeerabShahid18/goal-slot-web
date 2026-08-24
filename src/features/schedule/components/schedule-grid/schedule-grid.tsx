@@ -8,7 +8,7 @@ import { DraftBlock } from '@/features/schedule/components/schedule-grid/draft-b
 import { ScheduleGridDragLayer } from '@/features/schedule/components/schedule-grid/drag-layer'
 import { DraggableBlock } from '@/features/schedule/components/schedule-grid/draggable-block'
 import { useScheduleDrag } from '@/features/schedule/hooks/use-schedule-drag'
-import { COLUMN_HEIGHT, DAY_START_MIN, PX_PER_MIN, SLOT_MIN } from '@/features/schedule/utils/constants'
+import { DAY_START_MIN, getColumnHeight, getPxPerMin, SLOT_MIN } from '@/features/schedule/utils/constants'
 import { DraftSelection, ScheduleBlock, ScheduleDensity, WeekSchedule } from '@/features/schedule/utils/types'
 import { snapMinutes } from '@/features/schedule/utils/utils'
 import { Plus } from 'lucide-react'
@@ -36,11 +36,17 @@ export function ScheduleGrid({
   density,
 }: ScheduleGridProps) {
   const { activeId, preview, pendingDraft, setPendingDraft, handleDragStart, handleDragMove, handleDragEnd } =
-    useScheduleDrag({ weekSchedule, draftKey })
+    useScheduleDrag({ weekSchedule, draftKey, density })
   const [draftSelection, setDraftSelection] = useState<DraftSelection | null>(null)
   const [isCreating, setIsCreating] = useState(false)
   const pointerColumnRef = useRef<number | null>(null)
   const draftAnchorRef = useRef<number | null>(null)
+  // Computed once per render from the active density; every pixel<->minute
+  // conversion in this component (pointer math, block top/height, hour
+  // gridlines) reads through these so they always agree with each other
+  // and with useScheduleDrag's own density-driven scale.
+  const pxPerMin = getPxPerMin(density)
+  const columnHeight = getColumnHeight(density)
 
   if (isPending) {
     return (
@@ -57,7 +63,7 @@ export function ScheduleGrid({
     setPendingDraft(null)
     const rect = event.currentTarget.getBoundingClientRect()
     const offsetY = event.clientY - rect.top
-    const start = snapMinutes(DAY_START_MIN + offsetY / PX_PER_MIN)
+    const start = snapMinutes(DAY_START_MIN + offsetY / pxPerMin)
     draftAnchorRef.current = start
     const end = snapMinutes(start + SLOT_MIN)
     setDraftSelection({ dayOfWeek, start: Math.min(start, end), end: Math.max(start, end) })
@@ -70,7 +76,7 @@ export function ScheduleGrid({
     if (!isCreating || pointerColumnRef.current === null || !draftSelection || draftAnchorRef.current === null) return
     const rect = event.currentTarget.getBoundingClientRect()
     const offsetY = event.clientY - rect.top
-    const current = snapMinutes(DAY_START_MIN + offsetY / PX_PER_MIN)
+    const current = snapMinutes(DAY_START_MIN + offsetY / pxPerMin)
     const anchor = draftAnchorRef.current
     const low = Math.min(anchor, current)
     const high = Math.max(anchor + SLOT_MIN, current)
@@ -97,14 +103,14 @@ export function ScheduleGrid({
     // Keep real block at persisted position; draft overlay shows drag intent.
     const startMin = timeToMinutes(block.startTime)
     const endMin = timeToMinutes(block.endTime)
-    const top = (startMin - DAY_START_MIN) * PX_PER_MIN
+    const top = (startMin - DAY_START_MIN) * pxPerMin
     // Render each block at its true time-proportional height. The previous
     // Math.max(..., 32) floor inflated 15-min blocks to span 32 minutes,
     // which made them overlap any block that started in the next 17
     // minutes. DraggableBlock has its own compact-render path for short
     // heights so short blocks still stay readable without lying about
     // their time span.
-    const height = (endMin - startMin) * PX_PER_MIN
+    const height = (endMin - startMin) * pxPerMin
 
     return (
       <DraggableBlock
@@ -159,9 +165,9 @@ export function ScheduleGrid({
             {isEmpty && (
               <ScheduleEmptyState onAddBlock={() => onAddBlock(1, { startTime: '09:00', endTime: '10:00' })} />
             )}
-            <div className="relative w-16 border-r border-zinc-200" style={{ height: COLUMN_HEIGHT }}>
+            <div className="relative w-16 border-r border-zinc-200" style={{ height: columnHeight }}>
               {Array.from({ length: 24 }, (_, hour) => {
-                const top = (hour * 60 - DAY_START_MIN) * PX_PER_MIN
+                const top = (hour * 60 - DAY_START_MIN) * pxPerMin
                 const ampm = hour >= 12 ? 'PM' : 'AM'
                 const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
                 return (
@@ -182,16 +188,22 @@ export function ScheduleGrid({
                 <DayColumn
                   key={dayOfWeek}
                   dayOfWeek={dayOfWeek}
+                  pxPerMin={pxPerMin}
+                  columnHeight={columnHeight}
                   onPointerDown={handlePointerDown}
                   onPointerMove={handlePointerMove}
                   onPointerUp={handlePointerUp}
                 >
                   {(weekSchedule[dayOfWeek] || []).map((block) => renderBlock(block))}
-                  {preview && preview.dayOfWeek === dayOfWeek && activeId && <DraftBlock selection={preview} />}
-                  {draftSelection && draftSelection.dayOfWeek === dayOfWeek && (
-                    <DraftBlock selection={draftSelection} />
+                  {preview && preview.dayOfWeek === dayOfWeek && activeId && (
+                    <DraftBlock selection={preview} pxPerMin={pxPerMin} />
                   )}
-                  {pendingDraft && pendingDraft.dayOfWeek === dayOfWeek && <DraftBlock selection={pendingDraft} />}
+                  {draftSelection && draftSelection.dayOfWeek === dayOfWeek && (
+                    <DraftBlock selection={draftSelection} pxPerMin={pxPerMin} />
+                  )}
+                  {pendingDraft && pendingDraft.dayOfWeek === dayOfWeek && (
+                    <DraftBlock selection={pendingDraft} pxPerMin={pxPerMin} />
+                  )}
                 </DayColumn>
               ))}
             </div>

@@ -72,13 +72,26 @@ function DraggableBlockImpl({ block, top, height, isActiveDrag, onEdit, onViewDe
   }
 
   const accentColor = categoryColor || block.color || '#9CA3AF'
-  // Render-mode thresholds. Below 20px (15-min @ PX_PER_MIN=1) we are in
-  // "tiny" mode: title only, smaller font, no padding-heavy elements.
-  // Below 44px we are "compact": title + goal name, no tasks list.
-  // 44px+ is full content. The gap inset (1px top + 1px bottom) is kept
-  // for normal blocks so adjacent same-color blocks stay visually
-  // distinct; for tiny blocks we drop the inset because losing 2px of 15
-  // is too much.
+  // Render-mode thresholds, deliberately in absolute PIXELS, not minutes —
+  // the content they gate (task-list rows, header text) has a fixed pixel
+  // size regardless of density, so these stay constant across compact and
+  // comfortable. Below 20px we are in "tiny" mode: title only, smaller
+  // font, no padding-heavy elements. Below 44px we are "compact": title +
+  // goal name, no tasks list. 44px+ is full content.
+  //
+  // Because comfortable mode's getPxPerMin() renders more pixels per
+  // minute (see constants.ts), the SAME-duration block crosses these
+  // thresholds into a fuller mode sooner in comfortable than in compact
+  // (e.g. a 15-min block: 15px in compact stays "tiny", but 22.5px in
+  // comfortable already clears it into "compact" mode; a 30-min block:
+  // 30px in compact stays "compact", but 45px in comfortable clears into
+  // full content with a tasks list). That is intentional — it's exactly
+  // the "more height, more room for content" comfortable mode is for, so
+  // the thresholds themselves don't need to scale with density too.
+  //
+  // The gap inset (1px top + 1px bottom) is kept for normal blocks so
+  // adjacent same-color blocks stay visually distinct; for tiny blocks we
+  // drop the inset because losing 2px of 15 is too much.
   const isTiny = height < 20
   const isCompact = height < 44
   // Grid-density-driven title wrap: only when the user has opted into the
