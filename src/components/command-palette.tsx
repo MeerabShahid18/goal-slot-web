@@ -14,6 +14,7 @@ import {
   Clock,
   CornerDownLeft,
   Download,
+  FileText,
   LayoutDashboard,
   LayoutGrid,
   Megaphone,
@@ -38,6 +39,9 @@ import type { Task } from '@/features/time-tracker/utils/types'
 import type { Goal } from '@/features/goals/utils/types'
 import { useIsAdmin } from '@/lib/store'
 import { useDismissable } from '@/lib/use-dismissable'
+import { useNotionConnection } from '@/features/settings/hooks/use-notion-connection'
+import { useNotionIndex } from '@/features/settings/hooks/use-notion-pages'
+import { NotionReferencePanel } from '@/features/settings/components/notion-reference-panel'
 
 /**
  * Ctrl/Cmd+K command palette.
@@ -72,7 +76,7 @@ interface PaletteItem {
   hint?: string
   /** Free-text used by the filter only — never shown. */
   keywords?: string
-  group: 'Quick actions' | 'Pages' | 'Admin' | 'Goals' | 'Tasks'
+  group: 'Quick actions' | 'Pages' | 'Admin' | 'Goals' | 'Tasks' | 'Notion References'
   icon: IconLike
   href?: string
   onSelect?: () => void
@@ -133,6 +137,7 @@ const GROUP_BONUS: Record<PaletteItem['group'], number> = {
   Goals: 20,
   Pages: 10,
   Admin: 5,
+  'Notion References': 15,
 }
 
 interface ItemMeta {
@@ -226,6 +231,33 @@ export function CommandPalette({
   const queryClient = useQueryClient()
   const { data: goals = [] } = useGoalsQuery()
   const { data: tasks = [] } = useTasksQuery()
+  const { status: notionStatus } = useNotionConnection()
+  const { data: notionIndex } = useNotionIndex()
+
+  const [selectedNotionPageId, setSelectedNotionPageId] = useState<string | null>(null)
+  const [parentNotionPageId, setParentNotionPageId] = useState<string | null>(null)
+
+  const handleSelectNotionPage = useCallback(
+    (pageId: string | null) => {
+      if (pageId === null) {
+        setSelectedNotionPageId(null)
+        setParentNotionPageId(null)
+        return
+      }
+
+      if (selectedNotionPageId && selectedNotionPageId !== pageId) {
+        if (parentNotionPageId === pageId) {
+          setParentNotionPageId(null)
+        } else {
+          setParentNotionPageId(selectedNotionPageId)
+        }
+      } else {
+        setParentNotionPageId(null)
+      }
+      setSelectedNotionPageId(pageId)
+    },
+    [selectedNotionPageId, parentNotionPageId]
+  )
 
   // Bump a counter every time the palette opens. We pass it into the
   // cmdk Command's `key` so the entire library state — search input,
@@ -304,8 +336,21 @@ export function CommandPalette({
       href: `/dashboard/tasks?taskId=${encodeURIComponent(t.id)}`,
     }))
 
-    return [...quick, ...PAGE_ITEMS, ...(isAdmin ? ADMIN_ITEMS : []), ...goalItems, ...taskItems]
-  }, [goals, tasks, isAdmin, onStartTracking, onOpenCoach, onOpenCheckin])
+    const notionItems: PaletteItem[] =
+      notionStatus?.connected && notionIndex?.items.length
+        ? notionIndex.items.map((page) => ({
+            id: `notion-${page.notionPageId}`,
+            label: page.title,
+            hint: `Notion ${page.pageType}`,
+            icon: FileText,
+            group: 'Notion References' as const,
+            keywords: 'notion reference page',
+            onSelect: () => handleSelectNotionPage(page.notionPageId),
+          }))
+        : []
+
+    return [...quick, ...PAGE_ITEMS, ...(isAdmin ? ADMIN_ITEMS : []), ...goalItems, ...taskItems, ...notionItems]
+  }, [goals, tasks, isAdmin, onStartTracking, onOpenCoach, onOpenCheckin, notionStatus, notionIndex, handleSelectNotionPage])
 
   // Build a lookup so cmdk's filter (which only sees the item's `value`
   // prop) can find back to the item meta we need for tiered scoring.
@@ -336,7 +381,7 @@ export function CommandPalette({
   // hides empty groups automatically when its filter returns 0 for
   // every item in them.
   const grouped = useMemo(() => {
-    const order: PaletteItem['group'][] = ['Quick actions', 'Pages', 'Admin', 'Goals', 'Tasks']
+    const order: PaletteItem['group'][] = ['Quick actions', 'Pages', 'Admin', 'Goals', 'Tasks', 'Notion References']
     const buckets = new Map<PaletteItem['group'], PaletteItem[]>()
     for (const g of order) buckets.set(g, [])
     for (const it of items) buckets.get(it.group)?.push(it)
@@ -359,51 +404,61 @@ export function CommandPalette({
 
   const dismissRef = useDismissable<HTMLDivElement>(open, () => onOpenChange(false))
 
-  if (!open) return null
-
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-start justify-center bg-zinc-900/30 px-4 pt-[12vh] backdrop-blur-sm"
-      role="presentation"
-    >
-      <div
-        ref={dismissRef}
-        className="w-full max-w-xl overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-2xl ring-1 ring-zinc-900/5"
-      >
-        <Command
-          // key={openCounter} forces cmdk to fully remount on each open
-          // so search/selected/internal state can't bleed between sessions.
-          key={openCounter}
-          label="Command Palette"
-          filter={filter}
-          // Loop arrow keys (top -> bottom -> top) — small UX win.
-          loop
-          className="flex flex-col"
+    <>
+      {open && (
+        <div
+          className="fixed inset-0 z-[100] flex items-start justify-center bg-zinc-900/30 px-4 pt-[12vh] backdrop-blur-sm"
+          role="presentation"
         >
-          <PaletteHeader />
+          <div
+            ref={dismissRef}
+            className="w-full max-w-xl overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-2xl ring-1 ring-zinc-900/5"
+          >
+            <Command
+              // key={openCounter} forces cmdk to fully remount on each open
+              // so search/selected/internal state can't bleed between sessions.
+              key={openCounter}
+              label="Command Palette"
+              filter={filter}
+              // Loop arrow keys (top -> bottom -> top) — small UX win.
+              loop
+              className="flex flex-col"
+            >
+              <PaletteHeader />
 
-          <Command.List className="max-h-[60vh] overflow-y-auto py-1">
-            <Command.Empty className="px-4 py-8 text-center text-sm text-zinc-500">
-              Nothing matches. Try a different word.
-            </Command.Empty>
+              <Command.List className="max-h-[60vh] overflow-y-auto py-1">
+                <Command.Empty className="px-4 py-8 text-center text-sm text-zinc-500">
+                  Nothing matches. Try a different word.
+                </Command.Empty>
 
-            {grouped.map((bucket) => (
-              <Command.Group
-                key={bucket.group}
-                heading={bucket.group}
-                className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-bold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-zinc-400"
-              >
-                {bucket.items.map((it) => (
-                  <CommandRowInner key={it.id} item={it} onSelect={() => handleSelect(it)} />
+                {grouped.map((bucket) => (
+                  <Command.Group
+                    key={bucket.group}
+                    heading={bucket.group}
+                    className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-bold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-zinc-400"
+                  >
+                    {bucket.items.map((it) => (
+                      <CommandRowInner key={it.id} item={it} onSelect={() => handleSelect(it)} />
+                    ))}
+                  </Command.Group>
                 ))}
-              </Command.Group>
-            ))}
-          </Command.List>
+              </Command.List>
 
-          <PaletteFooter />
-        </Command>
-      </div>
-    </div>
+              <PaletteFooter />
+            </Command>
+          </div>
+        </div>
+      )}
+
+      <NotionReferencePanel
+        pageId={selectedNotionPageId}
+        parentPageId={parentNotionPageId}
+        onClose={() => handleSelectNotionPage(null)}
+        isPaletteOpen={open}
+        onSelectPageId={handleSelectNotionPage}
+      />
+    </>
   )
 }
 

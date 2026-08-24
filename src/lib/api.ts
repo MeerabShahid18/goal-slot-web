@@ -1082,3 +1082,57 @@ export const notesApi = {
 export const publicNotesApi = {
   getByToken: (token: string) => api.get(`/public/notes/${token}`),
 }
+
+export interface NotionStatusDto {
+  connected: boolean
+  workspaceName: string | null
+  workspaceIcon: string | null
+  connectedAt: string | null
+}
+
+export interface NotionPageIndexItemDto {
+  notionPageId: string
+  title: string
+  pageType: 'page' | 'database'
+  indexedAt: string
+}
+
+export interface NotionPageIndexDto {
+  items: NotionPageIndexItemDto[]
+  stale: boolean
+}
+
+export interface NotionBlockDto {
+  id: string
+  type: string
+  text: string
+  children?: NotionBlockDto[]
+}
+
+export interface NotionDatabasePageItemDto {
+  notionPageId: string
+  title: string
+}
+
+export interface NotionPageContentDto {
+  contentType: 'page' | 'database'
+  pageId: string
+  title: string
+  blocks?: NotionBlockDto[]
+  pages?: NotionDatabasePageItemDto[]
+}
+
+export const integrationsApi = {
+  getNotionStatus: () => api.get<NotionStatusDto>('/integrations/notion/status'),
+  getNotionConnectUrl: () => api.get<{ url: string }>('/integrations/notion/connect'),
+  disconnectNotion: () => api.delete<{ success: boolean }>('/integrations/notion/disconnect'),
+
+  // Page index (cached)
+  getNotionIndex: () => api.get<NotionPageIndexDto>('/integrations/notion/index'),
+  refreshNotionIndex: () =>
+    api.post<{ success: boolean }>('/integrations/notion/index/refresh'),
+
+  // Page content
+  getNotionPageContent: (pageId: string) =>
+    api.get<NotionPageContentDto>(`/integrations/notion/pages/${pageId}`),
+}
