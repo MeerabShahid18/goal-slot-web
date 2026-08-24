@@ -162,7 +162,11 @@ something else on your machine is already using it.
 - `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST`: Analytics.
   Leaving them as placeholders disables analytics in local dev, which
   is what you want.
-- `NEXT_PUBLIC_DW_SSO_URL`: SSO endpoint, blank by default.
+- `NEXT_PUBLIC_DW_SSO_URL`: origin of the DW Platform that handles SSO,
+  blank by default. The login page appends `/auth/sso?redirect=...` to
+  it, so set the origin only (`https://platform.example.com`), not a
+  full path. While it is blank the "Sign in with SSO" button is not
+  rendered at all, which is what you want locally.
 
 If you ever need real values for any of these (for an SSO-related PR,
 for example), ping a maintainer on the relevant issue and we will get

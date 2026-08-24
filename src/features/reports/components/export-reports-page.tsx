@@ -25,6 +25,23 @@ export function ExportReportsPage() {
   const [showScheduleContext, setShowScheduleContext] = useState(false)
   const [includeTaskNotes, setIncludeTaskNotes] = useState(false)
 
+  // Ids of entries the user chose to leave out of the NEXT export only.
+  // Scoped to this page session (not persisted) and reset whenever the
+  // underlying filters change, since the entries on screen change too.
+  const [excludedEntryIds, setExcludedEntryIds] = useState<Set<string>>(new Set())
+
+  const toggleExcludedEntry = useCallback((entryId: string) => {
+    setExcludedEntryIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(entryId)) {
+        next.delete(entryId)
+      } else {
+        next.add(entryId)
+      }
+      return next
+    })
+  }, [])
+
   useEffect(() => {
     try {
       const stored = typeof window !== 'undefined' ? window.localStorage.getItem(HOURLY_RATE_STORAGE_KEY) : null
@@ -39,7 +56,20 @@ export function ExportReportsPage() {
     return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined
   }, [hourlyRateInput])
 
-  const dateRange = dateRangeValueToRange(dateRangeValue)
+  // Memoized deliberately: dateRangeValueToRange builds a fresh object
+  // literal on every call, with no caching of its own. Left un-memoized
+  // here, `dateRange` was a new reference on every render regardless of
+  // whether dateRangeValue actually changed - which, as a dependency of
+  // `filters` below, made `filters` itself a new reference every render
+  // too, defeating that useMemo. The effect further down that resets
+  // excludedEntryIds on `[filters]` change then fired on every single
+  // render, each time calling setExcludedEntryIds(new Set()) - a new Set
+  // reference every time, which React always treats as a real state
+  // change - triggering another render, which produced another new
+  // `dateRange`, forever: an infinite render loop, surfacing to the user
+  // as "Application error: a client-side exception has occurred" (Next's
+  // "Maximum update depth exceeded" crash).
+  const dateRange = useMemo(() => dateRangeValueToRange(dateRangeValue), [dateRangeValue])
 
   const filters: ReportFilters = useMemo(
     () => ({
@@ -66,6 +96,13 @@ export function ExportReportsPage() {
       includeTaskNotes,
     ],
   )
+
+  // Clear per-export exclusions whenever the filters change — the set of
+  // entries on screen (and their ids) is no longer the same, and this is a
+  // "hide from this export" choice, not a durable preference.
+  useEffect(() => {
+    setExcludedEntryIds(new Set())
+  }, [filters])
 
   const toggleGoalFilter = useCallback((goalId: string) => {
     setSelectedGoalIds((prev) => (prev.includes(goalId) ? prev.filter((id) => id !== goalId) : [...prev, goalId]))
@@ -114,7 +151,14 @@ export function ExportReportsPage() {
         eyebrow="Reports"
         title="Export Reports"
         description="Generate detailed or summary reports for invoicing, mentors, or teachers"
-        actions={<ExportReportsPageExportDialog filters={filters} dateRange={dateRange} viewType={viewType} />}
+        actions={
+          <ExportReportsPageExportDialog
+            filters={filters}
+            dateRange={dateRange}
+            viewType={viewType}
+            excludedEntryIds={excludedEntryIds}
+          />
+        }
       />
 
       <ExportReportsFilters state={filterState} />
@@ -125,6 +169,8 @@ export function ExportReportsPage() {
         includeBillable={includeBillable}
         showScheduleContext={showScheduleContext}
         includeTaskNotes={includeTaskNotes}
+        excludedEntryIds={excludedEntryIds}
+        onToggleExcludedEntry={toggleExcludedEntry}
       />
 
       <ExportUseCaseHints />

@@ -22,7 +22,38 @@ interface SearchableSelectProps {
   value: string
   onChange: (next: string) => void
   placeholder?: string
+  /** Shown when the option list itself is empty (nothing to choose from). */
   emptyMessage?: string
+  /**
+   * Extra sentence appended to the "no matches for X" state that explains what
+   * was searched — e.g. "Searched all 24 goals." An empty dropdown should never
+   * leave the user guessing whether something is being filtered out.
+   */
+  emptyHint?: string
+  /**
+   * Escape hatch offered next to "Clear search" when a search comes back empty.
+   * Use it whenever the caller narrows `options` itself, so the user can undo
+   * that narrowing from inside the dropdown.
+   */
+  emptyAction?: { label: string; onClick: () => void }
+  /**
+   * Call to action shown alongside `emptyMessage` when `options` itself is
+   * empty (before the user has typed anything to search) — distinct from
+   * `emptyAction`, which only ever appears after a search narrows a
+   * non-empty list down to zero matches and has nothing to offer someone
+   * who opens the dropdown to find there was never anything in it. Use
+   * this to let the user create the first option right there instead of
+   * dead-ending on a message with no way forward (e.g. "no categories yet"
+   * with nowhere to make one without abandoning whatever form this select
+   * sits in).
+   */
+  emptyStateAction?: { label: string; onClick: () => void }
+  /**
+   * Rendered between the search box and the option list. Use it to make any
+   * caller-side filtering or ordering visible rather than silently changing
+   * what the user can find.
+   */
+  notice?: React.ReactNode
   disabled?: boolean
   className?: string
   triggerClassName?: string
@@ -39,7 +70,11 @@ export function SearchableSelect({
   value,
   onChange,
   placeholder = 'Select...',
-  emptyMessage = 'No matches.',
+  emptyMessage = 'Nothing to choose from yet.',
+  emptyHint,
+  emptyAction,
+  emptyStateAction,
+  notice,
   disabled = false,
   className,
   triggerClassName,
@@ -52,15 +87,14 @@ export function SearchableSelect({
   const listRef = useRef<HTMLUListElement | null>(null)
 
   const selected = options.find((o) => o.value === value)
+  const trimmedQuery = query.trim()
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return options
     return options.filter(
       (o) =>
-        o.label.toLowerCase().includes(q) ||
-        o.value.toLowerCase().includes(q) ||
-        o.hint?.toLowerCase().includes(q),
+        o.label.toLowerCase().includes(q) || o.value.toLowerCase().includes(q) || o.hint?.toLowerCase().includes(q),
     )
   }, [options, query])
 
@@ -125,23 +159,14 @@ export function SearchableSelect({
           >
             <span className="flex min-w-0 items-center gap-2">
               {selected?.color && (
-                <span
-                  aria-hidden
-                  className="h-2 w-2 shrink-0 rounded-full"
-                  style={{ background: selected.color }}
-                />
+                <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ background: selected.color }} />
               )}
-              <span className={cn('truncate', !selected && 'text-zinc-400')}>
-                {selected?.label ?? placeholder}
-              </span>
+              <span className={cn('truncate', !selected && 'text-zinc-400')}>{selected?.label ?? placeholder}</span>
             </span>
             <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-zinc-400" />
           </button>
         </PopoverTrigger>
-        <PopoverContent
-          className="z-50 w-[--radix-popover-trigger-width] p-0"
-          align="start"
-        >
+        <PopoverContent className="z-50 w-[--radix-popover-trigger-width] p-0" align="start">
           <div className="border-b border-zinc-100 p-2">
             <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
@@ -156,6 +181,18 @@ export function SearchableSelect({
               />
             </div>
           </div>
+          {notice && (
+            /* A control in the notice usually unmounts the notice itself (it
+               undoes the thing the notice is announcing). Pull focus back to
+               the search box so it never lands on <body>, which would leave
+               Escape unhandled and the popover stuck open. */
+            <div
+              className="border-b border-zinc-100 bg-zinc-50 px-3 py-1.5 text-[10px] leading-tight text-zinc-500"
+              onClick={() => requestAnimationFrame(() => inputRef.current?.focus())}
+            >
+              {notice}
+            </div>
+          )}
           {/* RemoveScroll gives this list its own scroll-allow region. Without
               it, when the select is opened inside a Dialog (e.g. the schedule
               block editor), the Dialog's scroll lock blocks touch-scrolling the
@@ -163,50 +200,98 @@ export function SearchableSelect({
               This mirrors how Radix Select stays scrollable inside a dialog. */}
           <RemoveScroll allowPinchZoom removeScrollBar={false}>
             <ul ref={listRef} className="max-h-64 overflow-y-auto overscroll-contain py-1" role="listbox">
-            {filtered.length === 0 ? (
-              <li className="px-3 py-2 text-xs text-zinc-500">{emptyMessage}</li>
-            ) : (
-              filtered.map((option, index) => {
-                const isSel = option.value === value
-                const isFocused = index === focusedIndex
-                return (
-                  <li key={option.value}>
-                    <button
-                      type="button"
-                      role="option"
-                      aria-selected={isSel}
-                      onClick={() => {
-                        onChange(option.value)
-                        setOpen(false)
-                      }}
-                      onMouseEnter={() => setFocusedIndex(index)}
-                      className={cn(
-                        'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-zinc-50',
-                        isFocused && !isSel && 'bg-zinc-100',
-                        isSel && 'bg-[#fff7d1]',
-                      )}
-                    >
-                      {option.color && (
-                        <span
-                          aria-hidden
-                          className="h-2 w-2 shrink-0 rounded-full"
-                          style={{ background: option.color }}
-                        />
-                      )}
-                      <span className="flex min-w-0 flex-1 flex-col leading-tight">
-                        <span className="truncate text-zinc-900">{option.label}</span>
-                        {option.hint && (
-                          <span className="truncate text-[10px] text-zinc-400">
-                            {option.hint}
-                          </span>
+              {filtered.length === 0 ? (
+                /* Never dead-end on a bare "No matches." — say what was searched
+                 and give the user a way back to a non-empty list. */
+                <li className="px-3 py-2.5">
+                  {trimmedQuery ? (
+                    <div className="space-y-2">
+                      <p className="text-xs text-zinc-600">
+                        No matches for <span className="font-semibold text-zinc-900">&ldquo;{trimmedQuery}&rdquo;</span>
+                        .{emptyHint ? <span className="text-zinc-500"> {emptyHint}</span> : null}
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setQuery('')
+                            inputRef.current?.focus()
+                          }}
+                          className="rounded-md border border-zinc-200 bg-white px-2 py-1 text-[11px] font-medium text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-50"
+                        >
+                          Clear search
+                        </button>
+                        {emptyAction && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              emptyAction.onClick()
+                              setQuery('')
+                              inputRef.current?.focus()
+                            }}
+                            className="rounded-md border border-zinc-200 bg-white px-2 py-1 text-[11px] font-medium text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-50"
+                          >
+                            {emptyAction.label}
+                          </button>
                         )}
-                      </span>
-                      {isSel && <Check className="h-3.5 w-3.5 shrink-0 text-[#8a7307]" />}
-                    </button>
-                  </li>
-                )
-              })
-            )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-xs text-zinc-500">{emptyMessage}</p>
+                      {emptyStateAction && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            emptyStateAction.onClick()
+                            setOpen(false)
+                          }}
+                          className="rounded-md border border-zinc-200 bg-white px-2 py-1 text-[11px] font-medium text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-50"
+                        >
+                          {emptyStateAction.label}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </li>
+              ) : (
+                filtered.map((option, index) => {
+                  const isSel = option.value === value
+                  const isFocused = index === focusedIndex
+                  return (
+                    <li key={option.value}>
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={isSel}
+                        onClick={() => {
+                          onChange(option.value)
+                          setOpen(false)
+                        }}
+                        onMouseEnter={() => setFocusedIndex(index)}
+                        className={cn(
+                          'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-zinc-50',
+                          isFocused && !isSel && 'bg-zinc-100',
+                          isSel && 'bg-[#fff7d1]',
+                        )}
+                      >
+                        {option.color && (
+                          <span
+                            aria-hidden
+                            className="h-2 w-2 shrink-0 rounded-full"
+                            style={{ background: option.color }}
+                          />
+                        )}
+                        <span className="flex min-w-0 flex-1 flex-col leading-tight">
+                          <span className="truncate text-zinc-900">{option.label}</span>
+                          {option.hint && <span className="truncate text-[10px] text-zinc-400">{option.hint}</span>}
+                        </span>
+                        {isSel && <Check className="h-3.5 w-3.5 shrink-0 text-[#8a7307]" />}
+                      </button>
+                    </li>
+                  )
+                })
+              )}
             </ul>
           </RemoveScroll>
         </PopoverContent>

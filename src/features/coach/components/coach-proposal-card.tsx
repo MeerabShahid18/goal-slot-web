@@ -7,9 +7,12 @@ import {
   CheckCircle2,
   Edit3,
   Loader2,
+  NotebookPen,
   Plus,
   ShieldCheck,
   Sparkles,
+  Timer,
+  TimerOff,
   Trash2,
   XCircle,
 } from 'lucide-react'
@@ -47,6 +50,15 @@ const ACTION_META: Record<
   UPDATE_TASK: { label: 'Update task', verb: 'update', icon: Edit3 },
   DELETE_TASK: { label: 'Delete task', verb: 'delete', icon: Trash2 },
   CREATE_PRACTICE: { label: 'Add active practice', verb: 'create', icon: Sparkles },
+  // `update`, not `create`: it appends to a day's existing entry rather than
+  // replacing it, and nothing is destroyed — so it must not trip the card's
+  // "includes a delete" warning.
+  APPEND_JOURNAL_ENTRY: { label: 'Add to journal', verb: 'update', icon: NotebookPen },
+  // Neither of these is destructive: starting costs nothing, and stopping
+  // SAVES the elapsed time rather than throwing it away. Keeping them off the
+  // `delete` verb also keeps the card's "includes a delete" warning honest.
+  START_TIMER: { label: 'Start live timer', verb: 'create', icon: Timer },
+  STOP_TIMER: { label: 'Stop live timer', verb: 'update', icon: TimerOff },
 }
 
 // Verb pills share the dark brand pill so a proposal card doesn't read as
@@ -238,6 +250,25 @@ function describeAction(
       return { subject, detail }
     }
 
+    case 'APPEND_JOURNAL_ENTRY': {
+      // The whole point of the card is reviewing the words before they land
+      // in the journal, so the text itself is the subject rather than a
+      // generic "Journal entry" label with the content hidden.
+      const content = typeof p.content === 'string' ? p.content.trim() : ''
+      const subject = content ? `"${content.length > 160 ? `${content.slice(0, 160)}...` : content}"` : 'Journal entry'
+
+      const date = typeof p.date === 'string' ? p.date : undefined
+      let when = "today's entry"
+      if (date) {
+        const d = new Date(`${date}T00:00:00`)
+        when = Number.isNaN(d.getTime())
+          ? `the entry for ${date}`
+          : `the entry for ${d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}`
+      }
+
+      return { subject, detail: `Appends a paragraph to ${when}. Anything already written there is kept.` }
+    }
+
     case 'CREATE_TIME_ENTRY': {
       const taskName = typeof p.taskName === 'string' ? p.taskName : 'Work'
       const duration = typeof p.duration === 'number' ? p.duration : undefined
@@ -309,6 +340,57 @@ function describeAction(
       return { subject, detail: bits.length ? `Change ${bits.join(', ')}.` : 'Update this entry.' }
     }
 
+    case 'START_TIMER': {
+      // No duration here by design — START_TIMER drives the live stopwatch and
+      // nobody knows how long it runs until the user stops it. What matters at
+      // approval time is which goal it counts toward: Coach sends `goalId` when
+      // it can see the goal in context, or the raw words the user said as
+      // `goalName` for the API to resolve on apply.
+      const linkedGoalId = typeof p.goalId === 'string' ? p.goalId : undefined
+      const linkedGoal = linkedGoalId ? findGoal(queryClient, linkedGoalId) : undefined
+      const spokenGoal = typeof p.goalName === 'string' ? p.goalName.trim() : ''
+      const taskName = typeof p.taskName === 'string' ? p.taskName.trim() : ''
+      const goalLabel = linkedGoal?.title || spokenGoal || undefined
+
+      const name = taskName || goalLabel
+      const subject = name ? `"${name}"` : 'Untitled session'
+
+      const target = goalLabel
+        ? `counting toward "${goalLabel}"`
+        : linkedGoalId
+          ? 'counting toward a linked goal'
+          : "not linked to a goal, so the time won't count toward one"
+      const sentences = [`Starts the clock now, ${target}.`, 'It runs until you stop it.']
+      if (typeof p.notes === 'string' && p.notes.trim()) {
+        const notes = p.notes.trim()
+        sentences.push(`Note: ${notes.length > 60 ? `${notes.slice(0, 60)}...` : notes}`)
+      }
+      return { subject, detail: sentences.join(' ') }
+    }
+
+    case 'STOP_TIMER': {
+      // Every field is optional and present only to OVERRIDE what the running
+      // session already carries, so an empty payload is the normal case rather
+      // than missing data. The subject stays generic on purpose: which timer is
+      // running is server state we can't see from here, and naming an override
+      // as if it were the session would be a lie at approval time.
+      const linkedGoalId = typeof p.goalId === 'string' ? p.goalId : undefined
+      const linkedGoal = linkedGoalId ? findGoal(queryClient, linkedGoalId) : undefined
+      const spokenGoal = typeof p.goalName === 'string' ? p.goalName.trim() : ''
+      const taskName = typeof p.taskName === 'string' ? p.taskName.trim() : ''
+      const goalLabel = linkedGoal?.title || spokenGoal || undefined
+
+      const overrides: string[] = []
+      if (taskName) overrides.push(`name it "${taskName}"`)
+      if (goalLabel) overrides.push(`count it toward "${goalLabel}"`)
+      else if (linkedGoalId) overrides.push('count it toward a linked goal')
+      if (typeof p.notes === 'string' && p.notes.trim()) overrides.push('attach a note')
+
+      const sentences = ['Stops the running timer and saves the elapsed time as an entry.']
+      if (overrides.length) sentences.push(`Also ${overrides.join(', ')}.`)
+      return { subject: 'The running timer', detail: sentences.join(' ') }
+    }
+
     case 'CREATE_TASK':
     case 'UPDATE_TASK':
     case 'DELETE_TASK': {
@@ -378,22 +460,27 @@ export function CoachProposalCard({ block, sourceMessageId }: CoachProposalCardP
 
   // Eagerly populate the schedule + goals caches so describeAction can resolve
   // ids to "Qur'an Reading, Sun, 6:00 AM to 6:30 AM" even when the user hasn't
-  // visited the Schedule or Goals page yet. staleTime 0 + refetchOnMount
-  // 'always' so a block Coach just created/learned about in this conversation
-  // (and that isn't in the user's last cached schedule fetch) gets pulled in
-  // before the card renders — fixes "Block 3df269cf" fallback strings when
-  // some ids in the proposal aren't yet known to the client cache.
+  // visited the Schedule or Goals page yet. A short staleTime (rather than 0 +
+  // refetchOnMount: 'always') still guarantees a block Coach just
+  // created/learned about in this conversation gets pulled in — fixes "Block
+  // 3df269cf" fallback strings when some ids in the proposal aren't yet known
+  // to the client cache — but without forcing a brand new network round trip
+  // for every single proposal card. A conversation can render many of these
+  // cards in quick succession (one per proposal block across several
+  // messages); with staleTime 0 + refetchOnMount: 'always', each one indep-
+  // endently refetched all three queries even when a sibling card fetched
+  // the exact same data a moment earlier. 10s is long enough to cover a
+  // burst of cards rendering together, short enough to still catch data
+  // Coach only just mutated in this same session.
   useQuery({
     queryKey: ['schedule', 'weekly'],
     queryFn: async () => (await scheduleApi.getWeekly()).data,
-    staleTime: 0,
-    refetchOnMount: 'always',
+    staleTime: 10_000,
   })
   useQuery({
     queryKey: ['goals', 'list', undefined],
     queryFn: async () => (await goalsApi.getAll({})).data,
-    staleTime: 0,
-    refetchOnMount: 'always',
+    staleTime: 10_000,
   })
   // Eager fetch of the last 30 days of time entries so UPDATE_TIME_ENTRY
   // / DELETE_TIME_ENTRY proposals can render the entry's task name +
@@ -407,8 +494,7 @@ export function CoachProposalCard({ block, sourceMessageId }: CoachProposalCardP
       const data = res.data as any
       return Array.isArray(data) ? data : data?.items ?? []
     },
-    staleTime: 0,
-    refetchOnMount: 'always',
+    staleTime: 10_000,
   })
   const [selected, setSelected] = useState<Set<number>>(
     () => new Set(block.actions.map((_, i) => i)),
@@ -465,9 +551,22 @@ export function CoachProposalCard({ block, sourceMessageId }: CoachProposalCardP
         queryClient.invalidateQueries({ queryKey: ['schedule'] }),
         queryClient.invalidateQueries({ queryKey: ['scheduleBlocks'] }),
         queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+        // The Time Tracker's Recent Entries list actually lives under
+        // ['time-tracker', 'recent-entries'] (use-time-tracker-queries.ts) -
+        // ['time-entries'] / ['timeEntries'] below match nothing that's ever
+        // fetched under those keys and never did anything. Kept rather than
+        // removed in case something outside this file still relies on them,
+        // but ['time-tracker'] is the one that actually reaches the list a
+        // CREATE_TIME_ENTRY / UPDATE_TIME_ENTRY / DELETE_TIME_ENTRY proposal
+        // just changed.
+        queryClient.invalidateQueries({ queryKey: ['time-tracker'] }),
         queryClient.invalidateQueries({ queryKey: ['time-entries'] }),
         queryClient.invalidateQueries({ queryKey: ['timeEntries'] }),
         queryClient.invalidateQueries({ queryKey: ['coach', 'insights'] }),
+        // APPEND_JOURNAL_ENTRY writes here; without this the Journal page
+        // keeps showing the pre-append text until a manual reload, which
+        // reads as "apply did nothing".
+        queryClient.invalidateQueries({ queryKey: ['coach', 'journal', 'entries'] }),
       ])
 
       // Broadcast sync event to other open tabs
@@ -695,6 +794,15 @@ const ACTION_TYPE_SYNONYMS: Record<string, CoachProposalActionType> = {
   REMOVE_TIME_ENTRY: 'DELETE_TIME_ENTRY',
   ADD_PRACTICE: 'CREATE_PRACTICE',
   NEW_PRACTICE: 'CREATE_PRACTICE',
+  // The live stopwatch is the one action users reach for by voice ("start
+  // tracking my deen goal"), and dictated phrasing drifts further from the
+  // canonical name than typed phrasing does. An unmapped type is dropped
+  // silently, so the near-misses are worth spelling out.
+  START_TRACKING: 'START_TIMER',
+  BEGIN_TIMER: 'START_TIMER',
+  TRACK_TIME: 'START_TIMER',
+  STOP_TRACKING: 'STOP_TIMER',
+  END_TIMER: 'STOP_TIMER',
 }
 
 /**

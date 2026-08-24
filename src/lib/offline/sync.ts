@@ -44,7 +44,13 @@ export async function drainOutbox(): Promise<void> {
         synced++
         operation.invalidateKeys?.forEach((key) => keysToInvalidate.add(key))
       } catch (err) {
-        if (!hasResponse(err)) break // still offline — keep the entry and stop
+        // Only treat this as "offline" (keep entry, stop draining) when the
+        // browser itself reports no connectivity. A response-less error
+        // while still online (CORS, DNS, connection reset, brief API
+        // unreachability) isn't proof the request never landed, so leave
+        // the entry queued for the next drain rather than dropping it.
+        if (!onlineManager.isOnline()) break
+        if (!hasResponse(err)) break
 
         const status = err.response.status
         const isServerError = status >= 500

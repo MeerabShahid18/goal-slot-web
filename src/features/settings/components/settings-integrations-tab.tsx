@@ -1,8 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 
 import { ByokProvider, PROVIDER_META, useByokKey } from '@/features/settings/hooks/use-byok-key'
+import { useQueryClient } from '@tanstack/react-query'
+import { useNotionConnection } from '@/features/settings/hooks/use-notion-connection'
+import { integrationsApi } from '@/lib/api'
+import { NotionTargetPicker } from '@/features/settings/components/notion-target-picker'
+import { GoogleCalendarCard } from '@/features/calendar'
+import { calendarQueries } from '@/features/calendar/utils/queries'
 import { KeyRound, Trash2 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 
@@ -12,12 +19,103 @@ import { Button } from '@/components/ui/button'
 import { GlassCard } from '@/components/ui/glass-card'
 import { Input } from '@/components/ui/input'
 import { SectionHeader } from '@/components/ui/section-header'
+import { Loading } from '@/components/ui/loading'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 // Free-tier providers first so they're the obvious default for users
 // who don't want to attach a credit card. Order mirrors the picker chips.
 const PROVIDERS: ByokProvider[] = ['gemini', 'openrouter', 'openai', 'anthropic']
 
 export function SettingsIntegrationsTab() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const queryClient = useQueryClient()
+  const { status: notionStatus, isLoading: notionLoading, isPending: notionDisconnecting, disconnect: disconnectNotion } = useNotionConnection()
+  const handled = useRef(false)
+
+  useEffect(() => {
+    if (handled.current) return
+    const notionResult = searchParams.get('notion')
+    if (!notionResult) return
+    handled.current = true
+    if (notionResult === 'connected' || notionResult === 'updated') {
+      const successMessage =
+        notionResult === 'connected'
+          ? 'Notion workspace connected successfully!'
+          : 'Notion permitted pages updated successfully!'
+      toast.success(successMessage)
+      queryClient.invalidateQueries({ queryKey: ['integrations', 'notion'] })
+      queryClient.invalidateQueries({ queryKey: ['integrations', 'notion', 'index'] })
+      router.replace('/dashboard/settings?tab=integrations', { scroll: false })
+    } else if (notionResult === 'error') {
+      const msg = searchParams.get('message') || 'Connection failed'
+      toast.error(`Notion connection failed: ${msg}`)
+      router.replace('/dashboard/settings?tab=integrations', { scroll: false })
+    }
+  }, [searchParams, router, queryClient])
+
+  // Kept separate from the Notion effect above rather than folded into it: the
+  // two callbacks use different query params and different cache keys, and
+  // sharing the one `handled` ref would let whichever ran first swallow the
+  // other's result.
+  const googleCalendarHandled = useRef(false)
+
+  useEffect(() => {
+    if (googleCalendarHandled.current) return
+    const result = searchParams.get('google_calendar')
+    if (!result) return
+    googleCalendarHandled.current = true
+
+    if (result === 'connected') {
+      toast.success('Google Calendar connected. You can import events now.')
+      queryClient.invalidateQueries({ queryKey: calendarQueries.root() })
+    } else {
+      // The API only ever sends a short stable reason code, never raw text from
+      // Google, so these are the full set.
+      const reason = searchParams.get('reason')
+      toast.error(
+        reason === 'denied'
+          ? 'Google Calendar access was not granted'
+          : 'Could not connect Google Calendar. Please try again.',
+      )
+    }
+    router.replace('/dashboard/settings?tab=integrations', { scroll: false })
+  }, [searchParams, router, queryClient])
+
+  const [isDisconnectDialogOpen, setIsDisconnectDialogOpen] = useState(false)
+
+  const handleConnectNotion = async () => {
+    try {
+      const res = await integrationsApi.getNotionConnectUrl()
+      window.location.href = res.data.url
+    } catch (err: any) {
+      toast.error('Failed to initiate Notion connection')
+    }
+  }
+
+  const handleDisconnectNotion = () => {
+    setIsDisconnectDialogOpen(true)
+  }
+
+  const handleConfirmDisconnect = async () => {
+    try {
+      await disconnectNotion()
+      toast.success('Notion disconnected')
+      setIsDisconnectDialogOpen(false)
+    } catch {
+      toast.error('Failed to disconnect Notion. Please try again.')
+    }
+  }
+
   const {
     provider: savedProvider,
     maskedKey,
@@ -97,6 +195,97 @@ export function SettingsIntegrationsTab() {
 
   return (
     <div className="space-y-6">
+      <GoogleCalendarCard />
+
+      {/* Notion Connection Card */}
+      <GlassCard padded>
+        <SectionHeader
+          title={
+            <span className="flex items-center gap-2">
+              <span className="flex h-5 w-5 items-center justify-center rounded bg-zinc-900 text-[10px] font-bold text-white">N</span>
+              Notion Integration
+            </span>
+          }
+          action={
+            notionLoading ? (
+              <Badge variant="default">Checking connection...</Badge>
+            ) : notionStatus.connected ? (
+              <Badge variant="success">Connected</Badge>
+            ) : (
+              <Badge variant="default">Not Connected</Badge>
+            )
+          }
+        />
+
+        <p className="mb-4 text-sm text-zinc-600">
+          Connect your Notion workspace. Once connected, you will be able to push your notes to Notion and pull reference pages into the Coach. Coming soon.
+        </p>
+
+        {notionLoading ? (
+          <div className="flex items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 p-6">
+            <Loading className="h-5 w-5" />
+          </div>
+        ) : notionStatus.connected ? (
+          <div className="flex flex-col gap-4 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+            <div className="flex items-center gap-3">
+              {notionStatus.workspaceIcon ? (
+                <img src={notionStatus.workspaceIcon} alt="Workspace Icon" className="h-8 w-8 rounded object-cover" />
+              ) : (
+                <div className="flex h-8 w-8 items-center justify-center rounded bg-zinc-800 font-bold text-white">
+                  {notionStatus.workspaceName?.charAt(0) || 'N'}
+                </div>
+              )}
+              <div>
+                <h4 className="text-sm font-semibold text-zinc-900">{notionStatus.workspaceName}</h4>
+                <p className="text-xs text-zinc-500">
+                  Connected on {notionStatus.connectedAt ? new Date(notionStatus.connectedAt).toLocaleDateString() : 'N/A'}
+                </p>
+              </div>
+            </div>
+
+            <NotionTargetPicker />
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleDisconnectNotion}
+              disabled={notionDisconnecting}
+              className="mt-2 w-full border border-rose-100 bg-rose-50 text-rose-600 hover:bg-rose-100/50 hover:text-rose-700"
+            >
+              Disconnect Notion
+            </Button>
+          </div>
+        ) : (
+          <div className="pt-2">
+            <Button variant="brand" className="w-full" onClick={handleConnectNotion}>
+              Connect Notion Workspace
+            </Button>
+          </div>
+        )}
+
+        {/* Disconnect Confirmation Dialog */}
+        <AlertDialog open={isDisconnectDialogOpen} onOpenChange={setIsDisconnectDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Disconnect Notion?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Pushed notes will remain in Notion, but you won&apos;t be able to sync or push new notes until you reconnect.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={notionDisconnecting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleConfirmDisconnect}
+                className="bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-50"
+                disabled={notionDisconnecting}
+              >
+                {notionDisconnecting ? 'Disconnecting...' : 'Disconnect'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </GlassCard>
+
       <GlassCard padded>
         <SectionHeader
           title={

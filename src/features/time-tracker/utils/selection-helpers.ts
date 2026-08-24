@@ -5,10 +5,10 @@ export const getCategoryFromGoal = (goalId: string | undefined | null, goals: Go
   return goals.find((goal) => goal.id === goalId)?.category || ''
 }
 
-export const getGoalIdFromCategory = (category: string, goals: Goal[]) => {
-  if (!category) return ''
-  return goals.find((goal) => goal.category === category)?.id || ''
-}
+// NOTE: there is deliberately no category -> goal helper here. Deriving a goal
+// from a category picks whichever goal happens to be first, and narrowing the
+// goal list by category hides goals from search entirely. Attribution flows one
+// way only: goal -> category.
 
 export const getTaskByGoalOrCategory = (
   tasks: Task[],
@@ -23,11 +23,6 @@ export const getTaskByGoalOrCategory = (
     return tasks.find((task) => task.category === category)
   }
   return undefined
-}
-
-export const filterGoalsByCategory = (goals: Goal[], category: string) => {
-  if (!category) return goals
-  return goals.filter((goal) => goal.category === category)
 }
 
 export const sortTasksBySelection = (tasks: Task[], goalId?: string, category?: string) => {

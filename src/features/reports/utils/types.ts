@@ -64,6 +64,12 @@ export interface ExportReportParams extends ReportFilters {
   clientName?: string
   projectName?: string
   notes?: string
+  /**
+   * Ids of individual time entries to leave out of this export only. This is
+   * a one-off "hide from this export" action scoped to the current export
+   * session — it never deletes or otherwise mutates the underlying entries.
+   */
+  excludeEntryIds?: string[]
 }
 
 export interface DetailedTimeEntry {

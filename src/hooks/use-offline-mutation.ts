@@ -20,9 +20,12 @@ function isQueued(result: unknown): result is QueuedResult {
   return Boolean(result) && (result as QueuedResult)[QUEUED] === true
 }
 
-function hasResponse(err: unknown): boolean {
-  return Boolean((err as { response?: unknown })?.response)
-}
+// A mutation's error toast is usually a fixed string, but some failures
+// (e.g. a plan-limit 403) need copy that's specific to what the server
+// actually rejected. Supporting a resolver here keeps that logic in one
+// place (next to rollback/invalidation) instead of duplicated at every
+// call site that wants a non-generic message.
+export type MutationErrorMessage = string | { message: string; duration?: number }
 
 export interface OfflineMutationConfig<TVars, TContext, TResult = unknown> {
   kind: string
@@ -31,7 +34,15 @@ export interface OfflineMutationConfig<TVars, TContext, TResult = unknown> {
   getQueuedResult?: (vars: TVars, meta: OfflineMeta, payload: unknown) => TResult
   rollback?: (context: TContext | undefined) => void
   invalidateKeys?: QueryKey[]
-  messages?: { offline?: string; success?: string; error?: string }
+  messages?: { offline?: string; success?: string; error?: string | ((err: unknown) => MutationErrorMessage) }
+  // Side effects to run once the server has actually accepted the mutation.
+  // Deliberately NOT called when the mutation was only queued to the outbox
+  // while offline: analytics and similar consumers should describe what the
+  // backend really has, not what is still sitting in the outbox. Note that the
+  // outbox drain calls operation.execute() directly, so a queued mutation
+  // never fires this hook at all -- undercounting offline work is the
+  // intended trade-off versus counting writes that may never land.
+  onServerSuccess?: (result: TResult, vars: TVars) => void
 }
 
 interface InternalVars<TVars> {
@@ -75,7 +86,12 @@ export function useOfflineMutation<TVars, TContext = unknown, TResult = unknown>
       try {
         return (await operation.execute(payload, meta.idempotencyKey)) as TResult
       } catch (err) {
-        if (!hasResponse(err)) return enqueue(vars, payload, meta)
+        // Only treat this as "offline" when the browser itself reports no
+        // connectivity. A response-less axios error can also mean CORS,
+        // DNS, a connection reset, or the API being briefly unreachable
+        // (e.g. mid-deploy restart) while the browser is still online — none
+        // of those should be silently queued and retried forever.
+        if (!onlineManager.isOnline()) return enqueue(vars, payload, meta)
         throw err
       }
     },
@@ -83,17 +99,22 @@ export function useOfflineMutation<TVars, TContext = unknown, TResult = unknown>
       const ctx = config.optimisticUpdate?.(vars, meta, payload)
       return (ctx ?? {}) as TContext
     },
-    onSuccess: (result) => {
+    onSuccess: (result, { vars }) => {
       config.invalidateKeys?.forEach((key) => queryClient.invalidateQueries({ queryKey: key }))
       if (isQueued(result)) {
         if (config.messages?.offline) toast.success(config.messages.offline)
-      } else if (config.messages?.success) {
-        toast.success(config.messages.success)
+      } else {
+        if (config.messages?.success) toast.success(config.messages.success)
+        config.onServerSuccess?.(result as TResult, vars)
       }
     },
-    onError: (_err, _vars, context) => {
+    onError: (err, _vars, context) => {
       config.rollback?.(context)
-      toast.error(config.messages?.error ?? 'Something went wrong')
+      const resolved =
+        typeof config.messages?.error === 'function' ? config.messages.error(err) : config.messages?.error
+      const text = (typeof resolved === 'object' && resolved !== null ? resolved.message : resolved) ?? 'Something went wrong'
+      const duration = typeof resolved === 'object' && resolved !== null ? resolved.duration : undefined
+      toast.error(text, duration !== undefined ? { duration } : undefined)
     },
   })
 

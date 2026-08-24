@@ -21,9 +21,11 @@ import {
   type CoachStreamChunk,
 } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { onCoachSendRequest } from '@/lib/coach-bridge'
 import { useDismissable } from '@/lib/use-dismissable'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { CoachIcon } from '@/components/icons/coach-icon'
+import { VoiceDictationButton } from '@/components/voice-dictation-button'
 import { CoachMarkdown } from '@/features/coach/components/coach-markdown'
 import { CoachErrorText } from '@/features/coach/utils/stream-error-toast'
 import {
@@ -233,11 +235,45 @@ export function FloatingCoachPopover({ open, onClose }: FloatingCoachPopoverProp
     void handleSend(input)
   }
 
+  // Voice input bridge. The floating microphone dispatches a finished
+  // transcript here and it goes through the very same handleSend the typed
+  // composer uses — same streamChat call, same proposal parsing, same
+  // CoachProposalCard confirmation. Voice is an input method, not a second
+  // way to mutate data.
+  useEffect(() => {
+    return onCoachSendRequest((content) => {
+      if (streaming) return 'the Coach is still replying. Wait for it to finish'
+      if (!scopeKey) return 'the Coach chat is still loading. Try again in a moment'
+      void handleSend(content)
+    })
+  }, [handleSend, scopeKey, streaming])
+
+  // The floating microphone (FloatingVoiceButton) is a sibling, not a
+  // descendant, so a click on it reads as "outside" this popover and would
+  // otherwise dismiss the very chat the voice input is meant to continue —
+  // the panel that was showing the conversation vanishes right as the user
+  // tries to keep talking to it. Looked up by id rather than a shared ref
+  // because the two buttons are independent components with no common
+  // parent to thread a ref through; matches the existing window-event
+  // bridge pattern (coach-bridge.ts) already used for this same coupling.
+  const voiceTriggerIgnoreRef = useMemo(
+    () => ({
+      get current() {
+        return typeof document === 'undefined'
+          ? null
+          : document.getElementById('floating-voice-trigger')
+      },
+    }),
+    [],
+  )
+
   // Only dismiss on outside-click when no nested ConfirmDialog is open —
   // otherwise clicking the confirm button (rendered in a portal outside
   // this ref) would also close the parent popover and lose the streamed
   // chat state. Same goes for Escape: let the dialog handle its own.
-  const dismissRef = useDismissable<HTMLDivElement>(open && !confirmClear, onClose)
+  const dismissRef = useDismissable<HTMLDivElement>(open && !confirmClear, onClose, [
+    voiceTriggerIgnoreRef,
+  ])
 
   if (!open) return null
 
@@ -364,6 +400,10 @@ export function FloatingCoachPopover({ open, onClose }: FloatingCoachPopoverProp
           // mobile stops iOS Safari zooming in on focus, text-sm from sm: up.
           className="h-9 min-w-0 flex-1 rounded-md border border-zinc-200 bg-white px-2.5 text-base text-zinc-900 placeholder:text-zinc-400 focus:border-[#f2cc0d] focus:outline-none focus:ring-1 focus:ring-[#f2cc0d] disabled:opacity-50 sm:text-sm"
         />
+        <VoiceDictationButton
+          disabled={streaming}
+          onTranscript={(transcript) => handleSend(transcript)}
+        />
         {streaming ? (
           <button
             type="button"
@@ -430,8 +470,16 @@ function PopoverMessageRow({
     : { cleaned: message.content, proposals: [], pending: false }
 
   return (
-    <div className="group space-y-1">
-      <div className="flex items-center justify-between gap-2">
+    // Same left/right + accent-vs-neutral bubble pattern as the full Coach
+    // page (ChatMessageRow) and the messaging feature's MessageBubble, so a
+    // quick popover reply reads the same way as the full-page thread.
+    <div className={cn('group flex flex-col gap-1', isUser ? 'items-end' : 'items-start')}>
+      <div
+        className={cn(
+          'flex w-full max-w-[88%] items-center gap-2',
+          isUser ? 'justify-end' : 'justify-between',
+        )}
+      >
         <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-zinc-400">
           {isCoach ? 'Coach' : 'You'}
         </div>
@@ -448,7 +496,7 @@ function PopoverMessageRow({
         )}
       </div>
       {isCoach ? (
-        <div className="text-[13px] leading-relaxed text-zinc-900">
+        <div className="max-w-[88%] rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-[13px] leading-relaxed text-zinc-900">
           {cleaned && <CoachMarkdown content={cleaned} className="text-[13px]" />}
           {proposals.map((block, idx) => (
             <CoachProposalCard
@@ -471,7 +519,7 @@ function PopoverMessageRow({
       ) : (
         <div
           className={cn(
-            'whitespace-pre-wrap rounded-lg bg-zinc-100 px-2.5 py-1.5 text-[13px] leading-relaxed text-zinc-800',
+            'max-w-[88%] whitespace-pre-wrap rounded-lg border border-[#f2cc0d]/40 bg-[#fffbea] px-2.5 py-1.5 text-[13px] leading-relaxed text-zinc-900',
           )}
         >
           {message.content}

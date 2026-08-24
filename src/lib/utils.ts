@@ -1,5 +1,5 @@
 import { clsx, type ClassValue } from 'clsx'
-import { addDays, endOfWeek, format, parseISO, startOfWeek } from 'date-fns'
+import { format, parseISO } from 'date-fns'
 import { twMerge } from 'tailwind-merge'
 
 export function cn(...inputs: ClassValue[]) {
@@ -16,18 +16,6 @@ export function formatDuration(minutes: number): string {
   if (hours === 0) return `${mins}m`
   if (mins === 0) return `${hours}h`
   return `${hours}h ${mins}m`
-}
-
-export function getWeekDates(date: Date = new Date()) {
-  const start = startOfWeek(date, { weekStartsOn: 1 }) // Monday
-  const end = endOfWeek(date, { weekStartsOn: 1 })
-
-  const days = []
-  for (let i = 0; i < 7; i++) {
-    days.push(addDays(start, i))
-  }
-
-  return { start, end, days }
 }
 
 export function formatDate(date: Date | string, formatStr: string = 'MMM d, yyyy'): string {
@@ -52,13 +40,6 @@ export function getLocalTimeString(date: Date = new Date()): string {
   const hours = String(date.getHours()).padStart(2, '0')
   const minutes = String(date.getMinutes()).padStart(2, '0')
   return `${hours}:${minutes}`
-}
-
-export function getProgressColor(progress: number): string {
-  if (progress >= 75) return 'bg-accent-green'
-  if (progress >= 50) return 'bg-primary'
-  if (progress >= 25) return 'bg-accent-orange'
-  return 'bg-accent-pink'
 }
 
 export function timeToMinutes(time: string): number {

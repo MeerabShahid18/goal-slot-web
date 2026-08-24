@@ -8,6 +8,17 @@ import { timeToMinutes } from '@/lib/utils'
 
 import '@/features/schedule/utils/offline-operations'
 
+// The batch endpoint (POST /schedule/batch) rejects with a specific,
+// actionable reason — e.g. which day conflicted — rather than a generic
+// failure. Surface that text instead of always showing the same fixed
+// toast. Same pattern as serverErrorMessage in features/notes/hooks/use-notes.ts
+// and isPlanLimitError in features/time-tracker/hooks/use-time-tracker-mutations.ts.
+function serverErrorMessage(err: unknown): string | undefined {
+  const message = (err as { response?: { data?: { message?: string | string[] } } })?.response?.data?.message
+  if (Array.isArray(message)) return message[0]
+  return typeof message === 'string' ? message : undefined
+}
+
 type ScheduleCreatePayload = SchedulePayload & { id?: string }
 
 const weeklyKey = scheduleQueries.weekly().queryKey
@@ -50,6 +61,15 @@ export function useCreateScheduleBlocks() {
     },
     rollback: (ctx) => queryClient.setQueryData(weeklyKey, ctx?.previous),
     invalidateKeys: [weeklyKey],
+    messages: {
+      // Without this, useOfflineMutation's own onError showed a generic
+      // "Something went wrong" toast AND schedule-block-modal.tsx's catch
+      // block showed a second, specific one for the same failure. This hook
+      // now owns the single error toast (schedule-block-modal.tsx no longer
+      // shows its own for the create path) — same convention every other
+      // feature's mutation hooks already follow.
+      error: (err) => serverErrorMessage(err) ?? 'Failed to create block',
+    },
   })
 }
 

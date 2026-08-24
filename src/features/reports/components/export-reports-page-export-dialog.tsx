@@ -27,6 +27,8 @@ export interface ExportReportsPageExportDialogProps {
   dateRange: { startDate: string; endDate: string }
   viewType: ReportViewType
   trigger?: React.ReactNode
+  /** Ids of entries excluded from just this export (this session only). */
+  excludedEntryIds?: Set<string>
 }
 
 export function ExportReportsPageExportDialog({
@@ -34,6 +36,7 @@ export function ExportReportsPageExportDialog({
   dateRange,
   viewType,
   trigger,
+  excludedEntryIds,
 }: ExportReportsPageExportDialogProps) {
   const [open, setOpen] = useState(false)
   const [exportTitle, setExportTitle] = useState('Time Report')
@@ -53,6 +56,8 @@ export function ExportReportsPageExportDialog({
           clientName: exportClientName || undefined,
           projectName: exportProjectName || undefined,
           notes: exportNotes || undefined,
+          excludeEntryIds:
+            excludedEntryIds && excludedEntryIds.size > 0 ? Array.from(excludedEntryIds) : undefined,
         })
 
         if (exportFormat === 'csv' && result instanceof Blob) {
@@ -225,6 +230,7 @@ export function ExportReportsPageExportDialog({
       exportClientName,
       exportProjectName,
       exportNotes,
+      excludedEntryIds,
     ],
   )
 
@@ -242,6 +248,12 @@ export function ExportReportsPageExportDialog({
         <DialogHeader>
           <DialogTitle className="text-xl font-bold uppercase">Export Report</DialogTitle>
         </DialogHeader>
+        {excludedEntryIds && excludedEntryIds.size > 0 && (
+          <div className="rounded-lg border border-zinc-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+            {excludedEntryIds.size} {excludedEntryIds.size === 1 ? 'entry' : 'entries'} hidden from this export
+            only &mdash; your underlying data is unchanged.
+          </div>
+        )}
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <Label>Report Title</Label>

@@ -2,19 +2,23 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+
 import { useQueryClient } from '@tanstack/react-query'
-import { LayoutGrid, PanelLeft, PanelLeftClose, Plus, X } from 'lucide-react'
+import { PanelLeft, PanelLeftClose, Plus, X } from 'lucide-react'
+
 import { cn } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { Button } from '@/components/ui/button'
 import { Loading } from '@/components/ui/loading'
+
+import { appendCurrentHash, stashPendingLibraryFromUrl } from '../excalidraw-library-url'
 import { useSharedWhiteboardsQuery, useWhiteboardQuery, WHITEBOARDS_QUERY_KEY } from '../hooks/use-whiteboards'
 import { useWhiteboardsSelection } from '../hooks/use-whiteboards-selection'
 import type { SharedWithMeItem } from '../types'
 import { resolveWhiteboardScene } from '../whiteboard-draft'
-import { WhiteboardCanvas, type FlushWhiteboardSave } from '../WhiteboardCanvas'
+import type { FlushWhiteboardSave } from '../WhiteboardCanvas'
 import { SharedWhiteboardsPanel } from './shared-whiteboards-panel'
-import { WhiteboardHeader } from './whiteboard-header'
+import { EmptyWhiteboardPanel, OwnedWhiteboardPanel, SharedWhiteboardPanel } from './whiteboards-main-panel'
 import { WhiteboardsSidebar } from './whiteboards-sidebar'
 
 interface WhiteboardsPageProps {
@@ -53,6 +57,9 @@ export function WhiteboardsPage({ initialWhiteboardId }: WhiteboardsPageProps = 
   const handledActionRef = useRef(false)
   const handledSharedRef = useRef(false)
   const prevCreatingRef = useRef(false)
+  useEffect(() => {
+    stashPendingLibraryFromUrl()
+  }, [pathname, searchParams])
 
   useEffect(() => {
     if (isMobile && isMobileSidebarOpen && (selectedWhiteboard || selectedShared)) {
@@ -69,7 +76,7 @@ export function WhiteboardsPage({ initialWhiteboardId }: WhiteboardsPageProps = 
     const params = new URLSearchParams(searchParams.toString())
     params.delete('action')
     const next = params.toString()
-    router.replace(next ? `${pathname}?${next}` : pathname)
+    router.replace(appendCurrentHash(next ? `${pathname}?${next}` : pathname))
   }, [createWhiteboard, pathname, router, searchParams])
 
   useEffect(() => {
@@ -83,7 +90,7 @@ export function WhiteboardsPage({ initialWhiteboardId }: WhiteboardsPageProps = 
     const params = new URLSearchParams(searchParams.toString())
     params.delete('shared')
     const next = params.toString()
-    router.replace(next ? `${pathname}?${next}` : pathname)
+    router.replace(appendCurrentHash(next ? `${pathname}?${next}` : pathname))
   }, [pathname, router, searchParams, sharedList])
 
   useEffect(() => {
@@ -148,25 +155,27 @@ export function WhiteboardsPage({ initialWhiteboardId }: WhiteboardsPageProps = 
     </div>
   )
 
+  const registerFlush = (fn: FlushWhiteboardSave | null) => {
+    flushCanvasSaveRef.current = fn
+  }
+
   let mainContent: React.ReactNode
 
   if (selectedShared) {
     if (sharedWhiteboard) {
+      const resolvedSharedContent = resolveWhiteboardScene(sharedWhiteboard.id, sharedWhiteboard.content)
+      const waitingForSharedContent = sharedFetch.isFetching && !(resolvedSharedContent?.elements?.length ?? 0)
+
       mainContent = (
-        <div key={`shared-${selectedShared.shareId}`} className="flex h-full flex-col">
-          <WhiteboardHeader whiteboard={sharedWhiteboard} readOnly={sharedReadOnly} sharedBy={selectedShared.owner} />
-          <div className="min-h-0 flex-1">
-            <WhiteboardCanvas
-              key={sharedWhiteboard.id}
-              whiteboardId={sharedWhiteboard.id}
-              initialData={sharedWhiteboard.content}
-              readOnly={sharedReadOnly}
-              onRegisterFlush={(fn) => {
-                flushCanvasSaveRef.current = fn
-              }}
-            />
-          </div>
-        </div>
+        <SharedWhiteboardPanel
+          key={`shared-${selectedShared.shareId}`}
+          shared={selectedShared}
+          whiteboard={sharedWhiteboard}
+          readOnly={sharedReadOnly}
+          waitingForContent={waitingForSharedContent}
+          resolvedContent={resolvedSharedContent}
+          onRegisterFlush={registerFlush}
+        />
       )
     } else if (sharedFetch.isLoading) {
       mainContent = (
@@ -185,57 +194,31 @@ export function WhiteboardsPage({ initialWhiteboardId }: WhiteboardsPageProps = 
       )
     }
   } else if (selectedWhiteboard) {
-    const displayWhiteboard = ownedFetch.data?.whiteboard ?? selectedWhiteboard
-    const resolvedContent = resolveWhiteboardScene(displayWhiteboard.id, displayWhiteboard.content)
-    const hasElements = (resolvedContent?.elements?.length ?? 0) > 0
-    const waitingForServer =
-      !!ownedWhiteboardId &&
-      ownedFetch.isFetching &&
-      !hasElements &&
-      !resolveWhiteboardScene(selectedWhiteboard.id, selectedWhiteboard.content)?.elements?.length
+    // Scene content comes from the detail query only. The list response is
+    // metadata (a scene is capped at 2 MB, so shipping every board's content
+    // to draw a sidebar was a multi-megabyte fetch), so there is nothing to
+    // render the canvas from until the detail resolves.
+    const detail = ownedFetch.data?.whiteboard ?? null
+    // Chrome metadata only (title/icon/colour). Prefer the fresher detail row,
+    // fall back to the list summary so the header never blanks mid-flight.
+    const displayWhiteboard = detail ?? selectedWhiteboard
+    const resolvedContent = resolveWhiteboardScene(selectedWhiteboard.id, detail?.content ?? null)
+    // `!ownedFetch.isError` is load-bearing: without it a detail request that
+    // never resolves (a board deleted in another tab) spins forever.
+    const waitingForServer = !!ownedWhiteboardId && !detail && !ownedFetch.isError
 
     mainContent = (
-      <div key={selectedWhiteboard.id} className="flex h-full flex-col">
-        <WhiteboardHeader whiteboard={displayWhiteboard} autoFocusTitle={focusTitleId === displayWhiteboard.id} />
-        <div className="min-h-0 flex-1">
-          {waitingForServer ? (
-            <div className="flex h-full items-center justify-center">
-              <Loading size="md" />
-            </div>
-          ) : (
-            <WhiteboardCanvas
-              key={displayWhiteboard.id}
-              whiteboardId={displayWhiteboard.id}
-              initialData={resolvedContent}
-              readOnly={false}
-              onRegisterFlush={(fn) => {
-                flushCanvasSaveRef.current = fn
-              }}
-            />
-          )}
-        </div>
-      </div>
+      <OwnedWhiteboardPanel
+        key={selectedWhiteboard.id}
+        displayWhiteboard={displayWhiteboard}
+        resolvedContent={resolvedContent}
+        waitingForServer={waitingForServer}
+        focusTitleId={focusTitleId}
+        onRegisterFlush={registerFlush}
+      />
     )
   } else {
-    mainContent = (
-      <div className="flex h-full flex-col items-center justify-center gap-4 px-4 text-center">
-        <div className="flex h-20 w-20 items-center justify-center rounded-2xl border border-zinc-200 bg-zinc-50">
-          <LayoutGrid className="h-10 w-10 text-zinc-400" />
-        </div>
-        <div>
-          <h3 className="text-xl font-semibold text-zinc-900">Select a whiteboard or create a new one</h3>
-          <p className="mt-1 text-sm text-zinc-500">
-            {isMobile
-              ? 'Tap the menu to pick a whiteboard or create a new one.'
-              : 'Pick a whiteboard from the sidebar or create a new one.'}
-          </p>
-        </div>
-        <Button variant="brand" onClick={createWhiteboard} disabled={isCreating}>
-          {isCreating ? <Loading size="sm" /> : <Plus className="h-4 w-4" />}
-          {isCreating ? 'Creating...' : 'Create whiteboard'}
-        </Button>
-      </div>
-    )
+    mainContent = <EmptyWhiteboardPanel isMobile={isMobile} isCreating={isCreating} onCreate={createWhiteboard} />
   }
 
   const headerTitle = selectedShared

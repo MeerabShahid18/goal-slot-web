@@ -1,13 +1,28 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import dynamic from 'next/dynamic'
 
 import { JournalEntry } from '@/features/journal/hooks/use-journal-entries'
 import { Check, Loader2 } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
-import { TiptapEditor } from '@/components/tiptap-editor/tiptap-editor'
+import { VoiceDictationButton } from '@/components/voice-dictation-button'
 import { JournalUntangle } from '@/features/journal/components/journal-untangle'
+
+// TiptapEditor pulls in the full StarterKit + a dozen extension packages
+// plus lowlight. JournalEntryEditor mounts on first paint of the Journal
+// route regardless of which panel is focused, so a static import shipped
+// that whole editor bundle up front. Loading it on demand keeps it out of
+// the initial route bundle (same pattern as create-task-modal.tsx /
+// goal-modal.tsx / note-editor.tsx).
+const TiptapEditor = dynamic(
+  () => import('@/components/tiptap-editor/tiptap-editor').then((mod) => mod.TiptapEditor),
+  {
+    ssr: false,
+    loading: () => <div className="min-h-[250px] animate-pulse rounded-lg bg-zinc-50" />,
+  },
+)
 
 interface JournalEntryEditorProps {
   entry: JournalEntry | null
@@ -176,6 +191,26 @@ export function JournalEntryEditor({ entry, onSaveContent }: JournalEntryEditorP
           </h2>
         </div>
         <div className="flex items-center gap-2 text-xs text-zinc-500">
+          <VoiceDictationButton
+            label="Dictate into this entry"
+            panelSide="bottom"
+            // The full editor is the one surface with no adjacent text
+            // field to imply what a bare mic icon does - reported as easy
+            // to miss next to the word count. The labeled variant makes it
+            // read as its own feature, the way mobile's dedicated Voice
+            // entry point does, instead of blending into this metadata row.
+            variant="labeled"
+            // Reported: dictation stopped after an ordinary two-to-three
+            // second thinking pause. Long-form journaling needs real
+            // pauses without ending the whole session - 5s of silence
+            // before treating it as "done," instead of the browser's own
+            // much shorter, unconfigurable cutoff. 3 minutes total is a
+            // generous ceiling for one sitting, well past the 20s default
+            // tuned for a short spoken command elsewhere.
+            silenceTimeoutMs={5_000}
+            maxDurationMs={180_000}
+            onTranscript={(transcript) => handleInsertPrompt(`${transcript} `)}
+          />
           <span className="hidden sm:inline">{wordCount} {wordCount === 1 ? 'word' : 'words'}</span>
           <span aria-hidden className="hidden h-1 w-1 rounded-full bg-zinc-300 sm:inline-block" />
           <span

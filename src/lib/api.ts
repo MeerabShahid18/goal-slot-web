@@ -236,6 +236,56 @@ export const timeEntriesApi = {
   delete: (id: string) => api.delete(`/time-entries/${id}`),
 }
 
+export interface ActiveTimerSessionDto {
+  id: string
+  status: 'RUNNING' | 'PAUSED'
+  startedAt: string
+  segmentStartedAt: string | null
+  pausedAt: string | null
+  accumulatedMs: number
+  elapsedMs: number
+  serverTime: string
+  isStale: boolean
+  cappedElapsedMs: number
+  maxSessionMs: number
+  taskName: string | null
+  notes: string | null
+  goalId: string | null
+  goal: { id: string; title: string; color: string } | null
+  taskId: string | null
+  task: { id: string; title: string } | null
+  scheduleBlockId: string | null
+  scheduleBlock: { id: string; title: string } | null
+  lastClient: string | null
+}
+
+interface TimerAttributionFields {
+  taskName?: string | null
+  goalId?: string | null
+  taskId?: string | null
+  scheduleBlockId?: string | null
+  notes?: string | null
+}
+
+/**
+ * The single cross-device active timer session (`GET /timer/session` — see
+ * dw-time-api's ActiveTimerController). Singular resource, no id in the
+ * path: a user has at most one, scoped implicitly by their token.
+ */
+export const activeTimerApi = {
+  /** Returns null (200), not a 404, when nothing is running — safe to poll. */
+  getActive: () => api.get<ActiveTimerSessionDto | null>('/timer/session'),
+  /** 409s (body carries the current session) unless `takeOver: true`. */
+  start: (data: TimerAttributionFields & { takeOver?: boolean; client?: string } = {}) =>
+    api.post<ActiveTimerSessionDto>('/timer/session', data),
+  pause: () => api.post<ActiveTimerSessionDto>('/timer/session/pause'),
+  resume: () => api.post<ActiveTimerSessionDto>('/timer/session/resume'),
+  update: (data: TimerAttributionFields & { client?: string }) =>
+    api.patch<ActiveTimerSessionDto>('/timer/session', data),
+  stop: (data: TimerAttributionFields & { client?: string } = {}) => api.post('/timer/session/stop', data),
+  discard: () => api.delete<{ discarded: boolean }>('/timer/session'),
+}
+
 // Schedule API
 export const scheduleApi = {
   getAll: () => api.get('/schedule'),
@@ -292,6 +342,14 @@ export interface ExportReportParams extends ReportFilters {
   clientName?: string
   projectName?: string
   notes?: string
+  // A real array, NOT comma-separated like goalIds/taskIds above: those are
+  // shared with GET query-param report endpoints via ReportFiltersDto and
+  // parsed server-side accordingly, but excludeEntryIds only exists on the
+  // POST /reports/export body (report-filters.dto.ts's ExportReportDto),
+  // declared there as `@IsArray() @IsString({each:true}) excludeEntryIds?:
+  // string[]` with no comma-string Transform — sending a joined string
+  // fails that validation outright.
+  excludeEntryIds?: string[]
 }
 
 // Tasks API
@@ -338,9 +396,20 @@ export const sharingApi = {
   getPublicSharedGoals: (token: string) => api.get(`/public/share/view/${token}/goals`),
 }
 
+// Messaging handshake. GoalSlot mints the short-lived token for the
+// jiffy-messaging service and owns the "may these two talk?" decision;
+// everything after that goes straight to the messaging service.
+export const messagingApi = {
+  token: () => api.post('/messaging/token'),
+  createConversation: (userId: string) => api.post('/messaging/conversations', { userId }),
+}
+
 export const notificationsApi = {
-  list: (params?: { cursor?: string; limit?: number }) => api.get('/notifications', { params }),
+  list: (params?: { cursor?: string; limit?: number; scope?: 'all' | 'general' }) =>
+    api.get('/notifications', { params }),
   markRead: (id: string) => api.patch(`/notifications/${id}/read`),
+  markAllRead: () => api.patch('/notifications/read-all', null, { params: { scope: 'general' } }),
+  delete: (id: string) => api.delete(`/notifications/${id}`),
 }
 
 export const releaseNotesApi = {
@@ -367,7 +436,8 @@ export const stripeApi = {
 // Users API (Admin)
 export const usersApi = {
   getProfile: () => api.get('/users/profile'),
-  updateProfile: (data: { name?: string; avatar?: string }) => api.put('/users/profile', data),
+  updateProfile: (data: { name?: string; avatar?: string; dailyFocusGoalMinutes?: number }) =>
+    api.put('/users/profile', data),
   changePassword: (currentPassword: string, newPassword: string) =>
     api.put('/users/password', { currentPassword, newPassword }),
   deleteAccount: () => api.delete('/users/account'),
@@ -613,12 +683,27 @@ export type CoachProposalActionType =
   | 'UPDATE_TASK'
   | 'DELETE_TASK'
   | 'CREATE_PRACTICE'
+  // Appends a paragraph to a day's journal entry (payload: content, date?).
+  // Append rather than create/replace: a day has at most one entry, and the
+  // user may already have written in it by hand.
+  | 'APPEND_JOURNAL_ENTRY'
+  // Live stopwatch, NOT interchangeable with CREATE_TIME_ENTRY:
+  // CREATE_TIME_ENTRY logs work that already finished and whose duration is
+  // known, whereas START_TIMER/STOP_TIMER drive the shared ActiveTimerSession
+  // where the duration isn't known until the user stops.
+  | 'START_TIMER'
+  | 'STOP_TIMER'
 
 /**
  * Runtime source-of-truth for the action types the API accepts. Kept in lockstep
  * with the backend's COACH_ACTION_TYPES enum. Used to validate proposals the
  * model emits so a hallucinated type (e.g. "ADD_SCHEDULE_BLOCK") can't slip
  * through and 400 the whole apply batch.
+ *
+ * This array and the union above are separate declarations — adding a type to
+ * only one of them fails in a different way each time (type-only vs runtime
+ * validation), so always change both. A type the API emits but this array
+ * omits is dropped by normalizeCoachActionType before the user ever sees it.
  */
 export const COACH_PROPOSAL_ACTION_TYPES: readonly CoachProposalActionType[] = [
   'RENAME_GOAL',
@@ -635,6 +720,9 @@ export const COACH_PROPOSAL_ACTION_TYPES: readonly CoachProposalActionType[] = [
   'UPDATE_TASK',
   'DELETE_TASK',
   'CREATE_PRACTICE',
+  'APPEND_JOURNAL_ENTRY',
+  'START_TIMER',
+  'STOP_TIMER',
 ]
 
 export interface CoachProposalAction {
@@ -903,6 +991,61 @@ export const coachApi = {
   updateInsightStatus: (id: string, status: CoachInsightStatusEnum, note?: string) =>
     api.post<CoachInsightDto>(`/coach/insights/${id}/status`, { status, note }),
   deleteInsight: (id: string) => api.delete<{ success: true }>(`/coach/insights/${id}`),
+
+  // Voice fast path — a plain classify-and-return REST call (no LLM
+  // conversation, no SSE), so the floating mic can route a trivial spoken
+  // command (start/stop the timer, a quick note) straight to the right
+  // direct mutation instead of round-tripping through streamChat's full
+  // context-bundle + system-prompt turn. Anything the classifier is not
+  // confident about, or doesn't cover, falls through to that full chat path
+  // unchanged — see src/lib/voice-intent-plan.ts for the routing decision.
+  classifyVoiceIntent: (transcript: string, context: CoachVoiceIntentContext) =>
+    api.post<CoachVoiceIntentResponse>(
+      '/coach/voice-intent',
+      { transcript, context },
+      // Short timeout: this exists to be fast. A slow/hung classify call is
+      // worse than no classify call, since either way we fall back to the
+      // full Coach conversation — better to fail that decision quickly.
+      { timeout: 6000 },
+    ),
+}
+
+// ---------------------------------------------------------------------------
+// Coach voice-intent classification (POST /coach/voice-intent)
+// ---------------------------------------------------------------------------
+
+export type CoachVoiceIntentType =
+  | 'START_TRACKING'
+  | 'STOP_TRACKING'
+  | 'PAUSE'
+  | 'RESUME'
+  | 'APPEND_NOTE'
+  | 'APPEND_JOURNAL'
+  | 'CREATE_TASK'
+  | 'CREATE_GOAL'
+  | 'DAY_QUERY'
+  | 'CHAT'
+  | 'UNKNOWN'
+
+export type CoachVoiceIntentConfidence = 'high' | 'low'
+
+export interface CoachVoiceIntentTarget {
+  kind: 'goal' | 'task'
+  id: string
+}
+
+export interface CoachVoiceIntentContext {
+  candidateGoals: { id: string; title: string }[]
+  candidateTasks: { id: string; title: string; goalId?: string }[]
+  timerStatus: 'idle' | 'running' | 'paused'
+}
+
+export interface CoachVoiceIntentResponse {
+  intent: CoachVoiceIntentType
+  confidence: CoachVoiceIntentConfidence
+  target: CoachVoiceIntentTarget | null
+  text: string | null
+  reasoning: string
 }
 
 // Notes API
@@ -939,4 +1082,153 @@ export const notesApi = {
 // Public (unauthenticated) endpoint for shared notes via token.
 export const publicNotesApi = {
   getByToken: (token: string) => api.get(`/public/notes/${token}`),
+}
+
+export interface NotionStatusDto {
+  connected: boolean
+  workspaceName: string | null
+  workspaceIcon: string | null
+  connectedAt: string | null
+}
+
+export interface NotionPageIndexItemDto {
+  notionPageId: string
+  title: string
+  pageType: 'page' | 'database'
+  indexedAt: string
+}
+
+export interface NotionPageIndexDto {
+  items: NotionPageIndexItemDto[]
+  stale: boolean
+}
+
+export interface NotionBlockDto {
+  id: string
+  type: string
+  text: string
+  children?: NotionBlockDto[]
+}
+
+export interface NotionDatabasePageItemDto {
+  notionPageId: string
+  title: string
+}
+
+export interface NotionPageContentDto {
+  contentType: 'page' | 'database'
+  pageId: string
+  title: string
+  blocks?: NotionBlockDto[]
+  pages?: NotionDatabasePageItemDto[]
+}
+
+export const integrationsApi = {
+  getNotionStatus: () => api.get<NotionStatusDto>('/integrations/notion/status'),
+  getNotionConnectUrl: () => api.get<{ url: string }>('/integrations/notion/connect'),
+  disconnectNotion: () => api.delete<{ success: boolean }>('/integrations/notion/disconnect'),
+
+  // Page index (cached)
+  getNotionIndex: () => api.get<NotionPageIndexDto>('/integrations/notion/index'),
+  refreshNotionIndex: () =>
+    api.post<{ success: boolean }>('/integrations/notion/index/refresh'),
+
+  // Page content
+  getNotionPageContent: (pageId: string) =>
+    api.get<NotionPageContentDto>(`/integrations/notion/pages/${pageId}`),
+}
+
+// --- Google Calendar import ---
+//
+// Three steps on purpose: connect, preview, import. `preview` creates nothing;
+// it returns what *would* be created so the user can review and choose. Only
+// the rows they tick are sent to `import`.
+
+export interface GoogleCalendarConnectionDto {
+  /** False when the API has no Google Calendar credentials configured at all. */
+  available: boolean
+  connected: boolean
+  accountEmail: string | null
+  /** 'stale' means the grant was revoked at Google and the user must reconnect. */
+  status: 'active' | 'stale' | null
+  importedCount: number
+}
+
+export interface GoogleCalendarListDto {
+  id: string
+  name: string
+  color: string | null
+  primary: boolean
+  accessRole: string
+}
+
+/** Why an event cannot become a weekly block. Rendered as a disabled row. */
+export type ImportBlockedReason = 'all-day' | 'spans-midnight' | 'zero-length'
+
+export interface ImportCandidateDto {
+  externalEventId: string
+  externalCalId: string
+  calendarName: string
+  title: string
+  startsAt: string
+  endsAt: string
+  /** 0=Sunday .. 6=Saturday, already projected into the browser's timezone. */
+  dayOfWeek: number
+  startTime: string
+  endTime: string
+  /** How many Google instances collapsed into this one weekly slot. */
+  occurrences: number
+  blocked: ImportBlockedReason | null
+  alreadyImported: boolean
+  /** Title of an existing schedule block this would overlap. */
+  conflictsWith: string | null
+}
+
+export interface ImportPreviewDto {
+  timeZone: string
+  candidates: ImportCandidateDto[]
+}
+
+export interface ImportEventInput {
+  externalEventId: string
+  externalCalId: string
+  title: string
+  dayOfWeek: number
+  startTime: string
+  endTime: string
+  category?: string
+  color?: string
+}
+
+export type ImportOutcome = 'imported' | 'skipped' | 'conflict' | 'error'
+
+export interface ImportResultDto {
+  imported: number
+  results: Array<{
+    externalEventId: string
+    title: string
+    status: ImportOutcome
+    scheduleBlockId?: string
+    message?: string
+  }>
+}
+
+export const googleCalendarApi = {
+  getConnection: () => api.get<GoogleCalendarConnectionDto>('/integrations/google-calendar'),
+  getConsentUrl: () => api.get<{ url: string }>('/integrations/google-calendar/connect'),
+  listCalendars: () => api.get<GoogleCalendarListDto[]>('/integrations/google-calendar/calendars'),
+  // The timezone is sent explicitly because the day column and time an event
+  // maps to depend on it, and the server has no other way to know the user's.
+  preview: (params: { calendarIds: string[]; from: string; to: string; timeZone: string }) =>
+    api.get<ImportPreviewDto>('/integrations/google-calendar/preview', {
+      params: {
+        calendarIds: params.calendarIds.join(','),
+        from: params.from,
+        to: params.to,
+        timeZone: params.timeZone,
+      },
+    }),
+  import: (events: ImportEventInput[]) =>
+    api.post<ImportResultDto>('/integrations/google-calendar/import', { events }),
+  disconnect: () => api.delete<{ success: boolean }>('/integrations/google-calendar'),
 }

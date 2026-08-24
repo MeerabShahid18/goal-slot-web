@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { memo, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 
 import { EditTimeEntryModal } from '@/features/time-tracker/components/edit-time-entry-modal'
@@ -19,7 +19,11 @@ import { SearchableSelect } from '@/components/ui/searchable-select'
 
 const NO_GOAL_FILTER = '__NO_GOAL__'
 
-export function RecentEntries() {
+// Zero props, all its own state/queries — lives on the time-tracker page,
+// which re-renders every second while a timer is running. Wrapped in
+// memo so it never re-renders just because its parent did; it only
+// re-renders from its own state/query changes.
+function RecentEntriesImpl() {
   const deleteEntry = useDeleteTimeEntry()
   const [entryToDelete, setEntryToDelete] = useState<TimeEntry | null>(null)
   const [entryToEdit, setEntryToEdit] = useState<TimeEntry | null>(null)
@@ -355,3 +359,5 @@ export function RecentEntries() {
     </div>
   )
 }
+
+export const RecentEntries = memo(RecentEntriesImpl)

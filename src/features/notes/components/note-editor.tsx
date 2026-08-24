@@ -1,8 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import dynamic from 'next/dynamic'
 
 import {
+  AlertTriangle,
   Check,
   Copy,
   Download,
@@ -16,16 +18,47 @@ import {
   Trash2,
 } from 'lucide-react'
 
+import type { Editor } from '@tiptap/react'
+
+import { escapeHtml } from '@/lib/escape-html'
 import { downloadNoteAsMarkdown } from '@/lib/html-to-markdown'
 import { cn } from '@/lib/utils'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { TiptapEditor } from '@/components/tiptap-editor'
+import { VoiceDictationButton } from '@/components/voice-dictation-button'
+import { useTimedFlag } from '@/hooks/use-timed-flag'
+
+// TiptapEditor pulls in the full StarterKit + a dozen extension packages
+// plus lowlight. NoteEditor mounts as soon as a note is selected on the
+// Notes route, so a static import shipped that whole editor bundle on
+// first paint of /notes even while just browsing the sidebar list.
+// Loading it on demand keeps it out of the initial route bundle (same
+// pattern as create-task-modal.tsx / goal-modal.tsx).
+const TiptapEditor = dynamic(
+  () => import('@/components/tiptap-editor/tiptap-editor').then((mod) => mod.TiptapEditor),
+  {
+    ssr: false,
+    loading: () => <div className="min-h-[250px] animate-pulse rounded-lg bg-zinc-50" />,
+  },
+)
 
 import { useDeleteNoteMutation, useUpdateNoteMutation } from '../hooks/use-notes'
 import { Note, NOTE_COLORS, NOTE_ICONS } from '../utils/types'
 import { ShareNoteDialog } from './share-note-dialog'
 import { SharedWithPill } from './shared-with-pill'
+
+// The API accepts request bodies up to 50MB (main.ts's json({limit:'50mb'})),
+// but nothing between the browser and Node enforces a smaller ceiling, and
+// note content can grow unbounded because pasted/dropped images are embedded
+// as inline base64 data: URLs (tiptap-editor.tsx) with no size guard of their
+// own. A note that gets that large doesn't just risk hitting the real 50MB
+// wall — well before that, a single PUT that size is slow and fragile enough
+// to fail at the connection level (proxy/timeout/reset) with no HTTP response
+// at all, which reads identically to being offline. Reject client-side, well
+// under the real ceiling, so a doomed request never reaches the network and
+// autosave's 1s debounce doesn't hammer the API with the same oversized body
+// on every keystroke.
+const MAX_CONTENT_LENGTH = 3 * 1024 * 1024 // ~3MB of HTML
 
 // Convert old block-based JSON content to HTML
 function convertOldContentToHtml(content: string): string {
@@ -85,8 +118,18 @@ function convertOldContentToHtml(content: string): string {
   }
 }
 
-// Custom debounce hook
-function useDebounce<T extends (...args: any[]) => void>(callback: T, delay: number): T {
+// Custom debounce hook.
+//
+// Returns the debounced callback plus a `cancel`. `cancel` exists for the
+// "insert something programmatically, then save it right now" path
+// (dictation): without it the immediate save is followed a second later by
+// the queued debounce firing the identical payload, i.e. two PATCHes for
+// one edit. Mirrors how the journal editor clears its own debounce timer
+// before an out-of-band save (journal-entry-editor.tsx).
+function useDebounce<T extends (...args: any[]) => void>(
+  callback: T,
+  delay: number,
+): [T, () => void] {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const callbackRef = useRef(callback)
 
@@ -95,25 +138,29 @@ function useDebounce<T extends (...args: any[]) => void>(callback: T, delay: num
     callbackRef.current = callback
   }, [callback])
 
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current)
-      }
+  const cancel = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+      timeoutRef.current = null
     }
   }, [])
 
-  return useCallback(
+  useEffect(() => cancel, [cancel])
+
+  const debounced = useCallback(
     (...args: Parameters<T>) => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current)
       }
       timeoutRef.current = setTimeout(() => {
+        timeoutRef.current = null
         callbackRef.current(...args)
       }, delay)
     },
     [delay],
   ) as T
+
+  return [debounced, cancel]
 }
 
 interface NoteEditorProps {
@@ -136,11 +183,23 @@ export function NoteEditor({ note, onDelete, readOnly = false, sharedBy = null }
   const [showColorPicker, setShowColorPicker] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
   const [showShare, setShowShare] = useState(false)
-  const [copySuccess, setCopySuccess] = useState<string | null>(null)
+  const [copySuccess, flashCopySuccess] = useTimedFlag<'link' | 'html'>()
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  // Set when the last edit pushed content past MAX_CONTENT_LENGTH. Blocks
+  // autosave (see saveContent) and surfaces an inline, actionable banner
+  // instead of letting the save fail ambiguously against the network.
+  const [contentTooLarge, setContentTooLarge] = useState(false)
   const isInitialized = useRef(false)
   const noteIdRef = useRef(note.id)
-  const tiptapRef = useRef<{ commands: { focus: (pos?: 'end' | 'start') => any } } | null>(null)
+  const tiptapRef = useRef<Editor | null>(null)
+  // Has the user put a cursor in the note body since this note was opened?
+  // A freshly-mounted Tiptap editor's selection sits at the very start of
+  // the document, so dictating into a note nobody has clicked into would
+  // drop the spoken text ABOVE everything already written. Mobile appends
+  // at the end in that case (app/(app)/note/[id].tsx), and this mirrors it
+  // — while still honouring a real cursor once the user has placed one,
+  // the way the journal's Untangle inserts do.
+  const hasFocusedBodyRef = useRef(false)
   const [editorContent, setEditorContent] = useState(() => convertOldContentToHtml(note.content || ''))
 
   // Re-seed editor content ONLY when the user switches to a different note
@@ -154,6 +213,8 @@ export function NoteEditor({ note, onDelete, readOnly = false, sharedBy = null }
     setEditorContent(convertOldContentToHtml(note.content || ''))
     isInitialized.current = true
     noteIdRef.current = note.id
+    hasFocusedBodyRef.current = false
+    setContentTooLarge(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [note.id])
 
@@ -167,7 +228,7 @@ export function NoteEditor({ note, onDelete, readOnly = false, sharedBy = null }
     [note.title, updateMutation],
   )
 
-  const debouncedSaveTitle = useDebounce(saveTitle, 500)
+  const [debouncedSaveTitle] = useDebounce(saveTitle, 500)
 
   // Handle title change
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -189,12 +250,17 @@ export function NoteEditor({ note, onDelete, readOnly = false, sharedBy = null }
   const saveContent = useCallback(
     (html: string) => {
       if (!isInitialized.current) return
+      if (html.length > MAX_CONTENT_LENGTH) {
+        setContentTooLarge(true)
+        return
+      }
+      setContentTooLarge(false)
       updateMutation.mutate({ id: noteIdRef.current, data: { content: html } })
     },
     [updateMutation],
   )
 
-  const debouncedSaveContent = useDebounce(saveContent, 1000)
+  const [debouncedSaveContent, cancelSaveContent] = useDebounce(saveContent, 1000)
 
   const handleContentChange = useCallback(
     (html: string, _json?: any) => {
@@ -202,6 +268,58 @@ export function NoteEditor({ note, onDelete, readOnly = false, sharedBy = null }
       debouncedSaveContent(html)
     },
     [debouncedSaveContent],
+  )
+
+  const markBodyFocused = useCallback(() => {
+    hasFocusedBodyRef.current = true
+  }, [])
+
+  // Stable so TiptapEditor's onReady effect runs once per editor instance
+  // rather than on every render of this component — otherwise the 'focus'
+  // listener below would be re-subscribed each pass.
+  const handleEditorReady = useCallback(
+    (ed: Editor | null) => {
+      const previous = tiptapRef.current
+      if (previous && previous !== ed) previous.off('focus', markBodyFocused)
+      tiptapRef.current = ed
+      if (ed) ed.on('focus', markBodyFocused)
+    },
+    [markBodyFocused],
+  )
+
+  // Voice dictation for the note body.
+  //
+  // Deliberately the SAME machinery the journal editor uses — the shared
+  // VoiceDictationButton over useSpeechRecognition — not a second speech
+  // implementation. That means web's model: one tap opens one session, and
+  // the whole transcript arrives once when the user stops (or after
+  // silenceTimeoutMs of quiet). Mobile reopens the mic per phrase; matching
+  // that on web needs a continuous-dictation loop in the hook itself, which
+  // is a much larger change than this and belongs in its own PR.
+  const handleDictatedText = useCallback(
+    (transcript: string) => {
+      const ed = tiptapRef.current
+      if (readOnly || !ed) return
+      const spoken = transcript.trim()
+      if (!spoken) return
+      // insertContent() parses its argument as HTML. Escape first, or a
+      // spoken "&", "<" or quote is swallowed as markup instead of showing
+      // as the words that were actually said. Mobile escapes for exactly
+      // this reason (escapeNoteHtml in src/lib/note-content.ts).
+      ed
+        .chain()
+        .focus(hasFocusedBodyRef.current ? null : 'end')
+        .insertContent(`${escapeHtml(spoken)} `)
+        .run()
+      const next = ed.getHTML()
+      setEditorContent(next)
+      // Save now rather than waiting out the 1s autosave debounce — a
+      // refresh inside that window would silently drop what was just
+      // dictated. Cancelling the pending timer keeps this to one PATCH.
+      cancelSaveContent()
+      saveContent(next)
+    },
+    [cancelSaveContent, readOnly, saveContent],
   )
 
   // Handle icon change
@@ -239,16 +357,14 @@ export function NoteEditor({ note, onDelete, readOnly = false, sharedBy = null }
   const handleCopyLink = () => {
     const link = `${window.location.origin}/dashboard/notes?noteId=${note.id}`
     navigator.clipboard.writeText(link)
-    setCopySuccess('link')
-    setTimeout(() => setCopySuccess(null), 2000)
+    flashCopySuccess('link')
     setShowMenu(false)
   }
 
   // Copy as HTML
   const handleCopyHTML = () => {
     navigator.clipboard.writeText(editorContent)
-    setCopySuccess('html')
-    setTimeout(() => setCopySuccess(null), 2000)
+    flashCopySuccess('html')
     setShowMenu(false)
   }
 
@@ -371,6 +487,25 @@ export function NoteEditor({ note, onDelete, readOnly = false, sharedBy = null }
               <Check className="h-3 w-3" />
               Copied!
             </div>
+          )}
+
+          {/* Dictation — owner only; a read-only recipient has nothing to
+              write into. panelSide="bottom" is required, not cosmetic: this
+              header sits at the TOP of notes-page.tsx's overflow-hidden
+              column, and a panel opening upward from here is clipped away
+              with no visible error — the same trap the journal editor hit.
+              Same silence/duration values as the journal: long-form writing
+              has the same thinking-pause profile, and a lookalike control
+              with different timings would just be a lesser copy. */}
+          {!readOnly && (
+            <VoiceDictationButton
+              label="Dictate into this note"
+              panelSide="bottom"
+              variant="labeled"
+              silenceTimeoutMs={5_000}
+              maxDurationMs={180_000}
+              onTranscript={handleDictatedText}
+            />
           )}
 
           {/* Share button — owner only. Read-only recipients see no Share
@@ -519,6 +654,20 @@ export function NoteEditor({ note, onDelete, readOnly = false, sharedBy = null }
         </div>
       )}
 
+      {/* Content too large to save — shown instead of letting autosave keep
+          retrying a doomed request. Not a toast: this needs to stay visible
+          (and explain itself) for as long as the note is still oversized,
+          not flash and disappear like a transient network error would. */}
+      {contentTooLarge && (
+        <div className="flex shrink-0 items-start gap-2 border-b border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>
+            This note is too large to save. Remove some content or large embedded images, then it will save
+            automatically.
+          </span>
+        </div>
+      )}
+
       {/* Content - Tiptap Editor */}
       <div className="min-h-0 flex-1 overflow-hidden">
         <div className="h-full px-2 py-2 md:px-4">
@@ -529,9 +678,7 @@ export function NoteEditor({ note, onDelete, readOnly = false, sharedBy = null }
             editable={!readOnly}
             placeholder={readOnly ? '' : "Start typing... Use '/' for commands"}
             className="h-full"
-            onReady={(ed) => {
-              tiptapRef.current = ed as typeof tiptapRef.current
-            }}
+            onReady={handleEditorReady}
           />
         </div>
       </div>

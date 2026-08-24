@@ -2,5 +2,6 @@ export { SettingsIntegrationsTab } from '@/features/settings/components/settings
 export { SettingsCoachProfileTab } from '@/features/settings/components/settings-coach-profile-tab'
 export { useByokKey } from '@/features/settings/hooks/use-byok-key'
 export { useCoachProfile } from '@/features/settings/hooks/use-coach-profile'
+export { useNotionConnection } from '@/features/settings/hooks/use-notion-connection'
 export type { CoachProfile } from '@/features/settings/hooks/use-coach-profile'
 export type { ByokState, ByokStatus } from '@/features/settings/hooks/use-byok-key'

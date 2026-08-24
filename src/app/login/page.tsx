@@ -11,7 +11,9 @@ import { GoalSlotBrand } from '@/components/goalslot-logo'
 import { toast } from 'react-hot-toast'
 
 import { useAuthStore } from '@/lib/store'
+import { GoogleIcon } from '@/components/ui/google-icon'
 import { Loading } from '@/components/ui/loading'
+
 
 function LoginForm() {
   const router = useRouter()
@@ -40,11 +42,8 @@ function LoginForm() {
     }
   }
 
-  const handleSSOLogin = () => {
-    // Redirect to SSO platform
-    const dwPlatformUrl = process.env.NEXT_PUBLIC_DW_PLATFORM_URL
-    const returnUrl = `${window.location.origin}/auth/callback`
-    window.location.href = `${dwPlatformUrl}/auth/sso?redirect=${encodeURIComponent(returnUrl)}`
+  const handleGoogleLogin = () => {
+    window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/api/auth/google`
   }
 
   return (
@@ -119,11 +118,20 @@ function LoginForm() {
                 </>
               )}
             </button>
-            {/* "Continue with Google" hidden until the backend Google OAuth
-                strategy is re-shipped (api PR #52 was reverted because it
-                crashed the API on missing env vars). When the backend lands
-                with conditional registration + env vars on the VPS, restore
-                this block. */}
+            <div className="my-2 flex items-center gap-3">
+              <span className="h-px flex-1 bg-zinc-200" />
+              <span className="font-mono text-xs font-bold uppercase text-zinc-400">Or</span>
+              <span className="h-px flex-1 bg-zinc-200" />
+            </div>
+
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-50"
+            >
+              <GoogleIcon className="h-5 w-5" />
+              Continue with Google
+            </button>
           </form>
 
           <p className="mt-6 text-center font-mono text-sm">

@@ -9,6 +9,8 @@ import { Toaster } from 'react-hot-toast'
 import { ReactQueryProvider } from '@/lib/react-query-provider'
 import { FloatingCoachButton } from '@/components/floating-coach-button'
 import { FloatingJournalButton } from '@/components/floating-journal-button'
+import { FloatingVoiceButton } from '@/components/floating-voice-button'
+import { FloatingMessagesButton } from '@/features/messaging/components/floating-messages-button'
 import PostHogAuth from '@/components/posthog-auth'
 
 export const viewport: Viewport = {
@@ -24,6 +26,12 @@ export const metadata: Metadata = {
   description: 'Track your hours, see real progress, and level up. The productivity stack for developers and learners.',
   keywords: ['productivity', 'time tracking', 'goals', 'developer', 'learning', 'progress tracking'],
   authors: [{ name: 'GoalSlot' }],
+  // Proves domain ownership to Google Search Console, which Google OAuth
+  // verification requires before it will show our branding on the consent
+  // screen. Do not remove, verification is rechecked periodically.
+  verification: {
+    google: 'T7mpu0TGB7h3VkL4URpNT9aIqcIVpZD174N08Uqru_E',
+  },
   icons: {
     icon: '/icons/goalslot-logo-boxed.svg',
     shortcut: '/icons/goalslot-logo-boxed.svg',
@@ -50,9 +58,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ReactQueryProvider>
           <PostHogAuth />
           {children}
+          {/* Bottom-right dock, ordered by what each control is *for*:
+              first the capture actions you start (Journal, Voice, Coach),
+              then the two inboxes other people fill (Messages,
+              Notifications), then Feedback. Grouping by that distinction is
+              what keeps a six-item dock readable rather than an arbitrary
+              row of icons. */}
           <div className="fixed bottom-6 right-6 z-50 flex flex-row items-end gap-2">
             <FloatingJournalButton />
+            {/* Sits immediately left of the Coach button because that is
+                where its output lands: speaking opens the Coach quick chat. */}
+            <FloatingVoiceButton />
             <FloatingCoachButton />
+            <FloatingMessagesButton />
             <NotificationsButton />
             <Feedback label="Feedback" />
           </div>

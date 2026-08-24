@@ -4,17 +4,19 @@ import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 
+import { capture } from '@/utils/posthog/capture'
+import { Events } from '@/utils/posthog/events'
 import { useMutation } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { ArrowLeft, ArrowRight, Eye, EyeOff, Lock, Mail, User } from 'lucide-react'
-
-import { GoalSlotBrand } from '@/components/goalslot-logo'
+import { ArrowLeft, ArrowRight, Dice6, Eye, EyeOff, Lock, Mail, User } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 
 import { authApi, stripeApi } from '@/lib/api'
 import { useAuthStore } from '@/lib/store'
+import { GoogleIcon } from '@/components/ui/google-icon'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 import { Loading } from '@/components/ui/loading'
+import { GoalSlotBrand } from '@/components/goalslot-logo'
 
 function SignupForm() {
   const router = useRouter()
@@ -38,14 +40,6 @@ function SignupForm() {
 
   const register = useAuthStore((state) => state.register)
 
-  // Check email exists mutation
-  const checkEmailMutation = useMutation({
-    mutationFn: async (email: string) => {
-      const response = await authApi.checkEmailExists(email)
-      return response.data
-    },
-  })
-
   // Send OTP mutation
   const sendOTPMutation = useMutation({
     mutationFn: async (email: string) => {
@@ -58,6 +52,14 @@ function SignupForm() {
       setResendCooldown(60)
     },
     onError: (error: any) => {
+      // The API rejects a SIGNUP OTP for an address that already has an
+      // account with a 409. Keep the actionable copy the removed client-side
+      // checkEmailExists pre-check used to show, so a returning user is still
+      // pointed at login rather than just told the email is taken.
+      if (error?.response?.status === 409) {
+        toast.error('Email already registered. Please login instead.')
+        return
+      }
       toast.error(error.response?.data?.message || 'Failed to send verification code')
     },
   })
@@ -69,6 +71,8 @@ function SignupForm() {
     },
     onSuccess: async () => {
       toast.success('Account created successfully!')
+      capture(Events.AUTH_SIGNUP_COMPLETED)
+
       if (redirect) {
         router.push(redirect)
         return
@@ -106,13 +110,6 @@ function SignupForm() {
       return
     }
 
-    // Check if email exists
-    const emailCheck = await checkEmailMutation.mutateAsync(email)
-    if (emailCheck.exists) {
-      toast.error('Email already registered. Please login instead.')
-      return
-    }
-
     // Send OTP
     sendOTPMutation.mutate(email)
   }
@@ -127,6 +124,10 @@ function SignupForm() {
     }
 
     registerMutation.mutate()
+  }
+
+  const handleGoogleSignup = () => {
+    window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/api/auth/google`
   }
 
   // Handle resend OTP
@@ -144,7 +145,70 @@ function SignupForm() {
       return () => clearTimeout(timer)
     }
   }, [resendCooldown])
+  // Password generator
+ function generateStrongPassword(): string {
+  const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+  const lowercase = 'abcdefghijklmnopqrstuvwxyz'
+  const numbers = '0123456789'
+  const symbols = '!@#$%^&*()_+-=[]{}|;:,.<>?'
+  const all = uppercase + lowercase + numbers + symbols
 
+  // Using crypto.getRandomValues 
+  const pick = (charset: string): string => {
+    const buf = new Uint32Array(1)
+    crypto.getRandomValues(buf)
+    return charset[buf[0] % charset.length]
+  }
+
+  // Ensure at least one of each type
+  const password: string[] = [
+    pick(uppercase),
+    pick(uppercase),
+    pick(lowercase),
+    pick(lowercase),
+    pick(numbers),
+    pick(numbers),
+    pick(symbols),
+    pick(symbols),
+  ]
+
+  // Fill remaining to reach 16 characters
+  for (let i = password.length; i < 16; i++) {
+    password.push(pick(all))
+  }
+
+  // using Fisher-Yates shuffle
+  for (let i = password.length - 1; i > 0; i--) {
+    const buf = new Uint32Array(1)
+    crypto.getRandomValues(buf)
+    const j = buf[0] % (i + 1)
+    ;[password[i], password[j]] = [password[j], password[i]]
+  }
+
+  return password.join('')
+}
+
+  // Password strength checker
+  function getPasswordStrength(pwd: string): {
+    score: number
+    label: string
+    color: string
+  } {
+    if (!pwd) return { score: 0, label: '', color: '' }
+
+    let score = 0
+    if (pwd.length >= 8) score++
+    if (pwd.length >= 12) score++
+    if (/[A-Z]/.test(pwd)) score++
+    if (/[a-z]/.test(pwd)) score++
+    if (/[0-9]/.test(pwd)) score++
+    if (/[^A-Za-z0-9]/.test(pwd)) score++
+
+    if (score <= 2) return { score, label: 'Weak', color: 'bg-red-500' }
+    if (score <= 3) return { score, label: 'Fair', color: 'bg-yellow-500' }
+    if (score <= 4) return { score, label: 'Good', color: 'bg-blue-500' }
+    return { score, label: 'Strong', color: 'bg-green-500' }
+  }
   return (
     <div className="flex min-h-screen items-center justify-center bg-zinc-50 p-2 sm:p-6">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
@@ -205,7 +269,22 @@ function SignupForm() {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-bold uppercase">Password</label>
+                  <div className="mb-2 flex items-center justify-between">
+                    <label className="text-sm font-bold uppercase">Password</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const generated = generateStrongPassword()
+                        setPassword(generated)
+                        setShowPassword(true)
+                      }}
+                      className="inline-flex items-center gap-1 rounded-md border border-zinc-200 px-2 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-50"
+                      title="Generate strong password"
+                    >
+                      <Dice6 className="h-3.5 w-3.5" />
+                      Generate
+                    </button>
+                  </div>
                   <div className="relative">
                     <Lock className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
                     <input
@@ -213,28 +292,67 @@ function SignupForm() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 pl-12 pr-12 text-sm transition-colors placeholder:text-zinc-400 focus:border-[#f2cc0d] focus:outline-none focus:ring-1 focus:ring-[#f2cc0d]"
+                      className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 pl-12 pr-20 text-sm transition-colors placeholder:text-zinc-400 focus:border-[#f2cc0d] focus:outline-none focus:ring-1 focus:ring-[#f2cc0d]"
                       required
                       minLength={8}
                     />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                      aria-label={showPassword ? 'Hide password' : 'Show password'}
-                    >
-                      {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                    </button>
+                    <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
+                      {/* Show/hide toggle */}
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="text-gray-400 hover:text-gray-600"
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
-                  <p className="mt-1 font-mono text-xs text-gray-500">Minimum 8 characters</p>
+
+                  {/* Password strength indicator */}
+                  {password &&
+                    (() => {
+                      const strength = getPasswordStrength(password)
+                      return (
+                        <div className="mt-2">
+                          <div className="flex gap-1">
+                            {[1, 2, 3, 4].map((i) => (
+                              <div
+                                key={i}
+                                className={`h-1 flex-1 rounded-full transition-colors ${
+                                  i <= Math.ceil(strength.score / 1.5) ? strength.color : 'bg-zinc-200'
+                                }`}
+                              />
+                            ))}
+                          </div>
+                          <p
+                            className={`mt-1 font-mono text-xs ${
+                              strength.label === 'Weak'
+                                ? 'text-red-500'
+                                : strength.label === 'Fair'
+                                  ? 'text-yellow-500'
+                                  : strength.label === 'Good'
+                                    ? 'text-blue-500'
+                                    : 'text-green-500'
+                            }`}
+                          >
+                            {strength.label} password
+                          </p>
+                        </div>
+                      )
+                    })()}
+
+                  {!password && (
+                    <p className="mt-1 font-mono text-xs text-gray-500">Minimum 8 characters or use Generate</p>
+                  )}
                 </div>
 
                 <button
                   type="submit"
-                  disabled={sendOTPMutation.isPending || checkEmailMutation.isPending}
+                  disabled={sendOTPMutation.isPending}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:opacity-50"
                 >
-                  {sendOTPMutation.isPending || checkEmailMutation.isPending ? (
+                  {sendOTPMutation.isPending ? (
                     <Loading size="sm" className="h-5 w-5" />
                   ) : (
                     <>
@@ -242,10 +360,20 @@ function SignupForm() {
                     </>
                   )}
                 </button>
-                {/* "Continue with Google" hidden until the backend Google
-                    OAuth strategy is re-shipped (api PR #52 was reverted).
-                    Restore when the backend lands with conditional
-                    registration + env vars on the VPS. */}
+                <div className="my-2 flex items-center gap-3">
+                  <span className="h-px flex-1 bg-zinc-200" />
+                  <span className="font-mono text-xs font-bold uppercase text-zinc-400">Or</span>
+                  <span className="h-px flex-1 bg-zinc-200" />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleGoogleSignup}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-50"
+                >
+                  <GoogleIcon className="h-5 w-5" />
+                  Continue with Google
+                </button>
               </form>
             </>
           ) : (

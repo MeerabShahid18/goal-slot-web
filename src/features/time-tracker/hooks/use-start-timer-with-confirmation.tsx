@@ -4,6 +4,7 @@ import { useState } from 'react'
 
 import { useCreateTimeEntry } from '@/features/time-tracker/hooks/use-time-tracker-mutations'
 import { useTimer } from '@/features/time-tracker/hooks/use-timer'
+import { resolveEntryTitle } from '@/features/time-tracker/utils/entry-title'
 import { toast } from 'react-hot-toast'
 
 import { getLocalDateString } from '@/lib/utils'
@@ -44,7 +45,18 @@ export function useStartTimerWithConfirmation() {
     if (!isTimerActive || !hasMinimumTime) {
       // Execute callback first (e.g., update task status)
       params.onStartTimer?.()
-      start(params.task, params.taskId, params.category, params.goalId, params.scheduleBlockId)
+      // takeOver: true because a timer under the 1-minute grace period can
+      // still be an active server-side session — without this, switching
+      // within that window 409s (something is already running) and the UI
+      // silently snaps back to the old task instead of switching.
+      start(
+        params.task,
+        params.taskId,
+        params.category,
+        params.goalId,
+        params.scheduleBlockId,
+        true,
+      )
       return
     }
 
@@ -61,11 +73,14 @@ export function useStartTimerWithConfirmation() {
     try {
       const duration = Math.max(1, Math.floor(elapsedTime / 60)) // At least 1 minute
 
-      // Save the CURRENT timer as a time entry (not the pending one)
+      // Save the CURRENT timer as a time entry (not the pending one). The
+      // session being replaced may have been started with no title at all.
+      const outgoingTitle = resolveEntryTitle(currentTask)
+
       await createEntry.mutateAsync({
-        taskName: currentTask,
+        taskName: outgoingTitle,
         taskId: currentTaskId || undefined,
-        taskTitle: currentTask,
+        taskTitle: outgoingTitle,
         duration,
         date: getLocalDateString(),
         notes: 'Timer session',
@@ -80,13 +95,17 @@ export function useStartTimerWithConfirmation() {
       // Execute callback (e.g., update task status) before starting new timer
       await pendingTimerParams.onStartTimer?.()
 
-      // Start the new timer
+      // Start the new timer. takeOver: true because the outgoing session's
+      // time was just saved above but its server-side row hasn't been
+      // cleared yet — without this the server 409s on its own still-active
+      // session instead of replacing it.
       start(
         pendingTimerParams.task,
         pendingTimerParams.taskId,
         pendingTimerParams.category,
         pendingTimerParams.goalId,
         pendingTimerParams.scheduleBlockId,
+        true,
       )
 
       setShowConfirmDialog(false)
@@ -108,13 +127,16 @@ export function useStartTimerWithConfirmation() {
     // Execute callback (e.g., update task status) before starting new timer
     await pendingTimerParams.onStartTimer?.()
 
-    // Start the new timer
+    // Start the new timer. takeOver: true so this doesn't race the
+    // best-effort discard() reset() just fired in the background — the
+    // server accepts the new session and clears the old row itself either way.
     start(
       pendingTimerParams.task,
       pendingTimerParams.taskId,
       pendingTimerParams.category,
       pendingTimerParams.goalId,
       pendingTimerParams.scheduleBlockId,
+      true,
     )
 
     setShowConfirmDialog(false)

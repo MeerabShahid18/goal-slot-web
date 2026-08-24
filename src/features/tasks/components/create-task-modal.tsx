@@ -1,16 +1,28 @@
 import { useEffect, useMemo, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 
 import { CreateTaskForm, Goal, ScheduleBlock, Task } from '@/features/tasks/utils/types'
 
-import { getLocalDateString } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { TiptapEditor } from '@/components/tiptap-editor/tiptap-editor'
+
+// TiptapEditor pulls in the full StarterKit + a dozen extension packages.
+// This modal renders unconditionally inside TasksPage (just hidden while
+// closed), so a static import shipped that whole editor bundle on first
+// paint of the Tasks route even when the user never opens "New Task".
+// Loading it on demand keeps it out of the initial route bundle.
+const TiptapEditor = dynamic(
+  () => import('@/components/tiptap-editor/tiptap-editor').then((mod) => mod.TiptapEditor),
+  {
+    ssr: false,
+    loading: () => <div className="min-h-[250px] animate-pulse rounded-lg bg-zinc-50" />,
+  },
+)
 
 interface CreateTaskModalProps {
   isOpen: boolean
@@ -101,13 +113,8 @@ export function CreateTaskModal({
       // Pre-fill from default goal
       if (defaultGoalId) {
         const selectedGoal = goals.find((g) => g.id === defaultGoalId)
-        if (selectedGoal) {
-          if (selectedGoal.category) {
-            initialForm.category = selectedGoal.category
-          }
-
-          const todayDate = getLocalDateString()
-          initialForm.dueDate = todayDate
+        if (selectedGoal && selectedGoal.category) {
+          initialForm.category = selectedGoal.category
         }
       }
 

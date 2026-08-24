@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { Task } from '@/features/time-tracker/utils/types'
 import { Plus, Search } from 'lucide-react'
@@ -9,7 +9,9 @@ interface TaskSelectorProps {
   tasks: Task[]
   currentTaskId: string
   currentTask: string
-  timerState: 'STOPPED' | 'RUNNING' | 'PAUSED'
+  /** Editing stays open while a timer runs so a session started with nothing
+      can be labelled mid-flight. Only pass this to lock the field for real. */
+  disabled?: boolean
   onTaskIdChange: (id: string) => void
   onTaskTitleChange: (title: string) => void
   onCreateTask?: (title: string) => Promise<Task | null>
@@ -20,7 +22,7 @@ export function TaskSelector({
   tasks,
   currentTaskId,
   currentTask,
-  timerState,
+  disabled = false,
   onTaskIdChange,
   onTaskTitleChange,
   onCreateTask,
@@ -33,21 +35,30 @@ export function TaskSelector({
   const dropdownRef = useRef<HTMLDivElement>(null)
   const lastSyncedTaskIdRef = useRef<string | null>(null)
 
-  // Filter tasks based on search
-  const filteredTasks = tasks.filter((task) =>
-    (task.title ?? '').toLowerCase().includes(searchValue.toLowerCase()),
+  // Filter tasks based on search. This component is rendered inside the
+  // time-tracker page which re-renders every second while a timer is
+  // running, so filtering/grouping the full task list on every render
+  // (even when `tasks`/`searchValue` haven't changed) is wasted work —
+  // useMemo skips it on the ticks where neither input changed.
+  const filteredTasks = useMemo(
+    () => tasks.filter((task) => (task.title ?? '').toLowerCase().includes(searchValue.toLowerCase())),
+    [tasks, searchValue],
   )
 
-  const groupedTasks = filteredTasks.reduce((groups: { label: string; tasks: Task[] }[], task) => {
-    const label = task.goal?.title || 'No Goal'
-    const existing = groups.find((group) => group.label === label)
-    if (existing) {
-      existing.tasks.push(task)
-    } else {
-      groups.push({ label, tasks: [task] })
-    }
-    return groups
-  }, [])
+  const groupedTasks = useMemo(
+    () =>
+      filteredTasks.reduce((groups: { label: string; tasks: Task[] }[], task) => {
+        const label = task.goal?.title || 'No Goal'
+        const existing = groups.find((group) => group.label === label)
+        if (existing) {
+          existing.tasks.push(task)
+        } else {
+          groups.push({ label, tasks: [task] })
+        }
+        return groups
+      }, []),
+    [filteredTasks],
+  )
 
   // Check if we should show "create new" option
   const showCreateOption =
@@ -122,7 +133,7 @@ export function TaskSelector({
     if (!isOpen) setIsOpen(true)
   }
 
-  const isDisabled = timerState === 'RUNNING'
+  const isDisabled = disabled
 
   return (
     <div className="relative mx-auto mb-4 max-w-lg text-left" ref={dropdownRef}>

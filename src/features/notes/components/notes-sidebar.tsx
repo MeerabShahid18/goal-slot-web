@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import toast from 'react-hot-toast'
 
@@ -185,7 +185,7 @@ interface NoteItemProps {
   className?: string
 }
 
-function NoteItem({
+function NoteItemImpl({
   note,
   depth,
   isExpanded,
@@ -401,6 +401,43 @@ function NoteItem({
   )
 }
 
+// Custom equality: `activeDropTarget` gets a new object identity on
+// nearly every `onDragOver` while a note is being dragged, and it's
+// forwarded unchanged to every row in the tree (see recursive render
+// above). A plain React.memo would still re-render the entire tree on
+// every hovered-row change because the prop reference always differs.
+// Since a row's rendered output only actually depends on whether IT is
+// (or just stopped being) the active drop target, we only treat
+// `activeDropTarget` as "changed" for a row when that row was, or now
+// is, the target — every other row skips re-rendering during the drag.
+function areNoteItemPropsEqual(prev: NoteItemProps, next: NoteItemProps): boolean {
+  if (
+    prev.note !== next.note ||
+    prev.depth !== next.depth ||
+    prev.isExpanded !== next.isExpanded ||
+    prev.isSelected !== next.isSelected ||
+    prev.isMultiSelected !== next.isMultiSelected ||
+    prev.expandedIds !== next.expandedIds ||
+    prev.onSelect !== next.onSelect ||
+    prev.onToggleExpand !== next.onToggleExpand ||
+    prev.onCreateSubNote !== next.onCreateSubNote ||
+    prev.onToggleFavorite !== next.onToggleFavorite ||
+    prev.onDelete !== next.onDelete ||
+    prev.multiSelectIds !== next.multiSelectIds ||
+    prev.className !== next.className
+  ) {
+    return false
+  }
+
+  const noteId = next.note.id
+  const wasTarget = prev.activeDropTarget?.id === noteId
+  const isTarget = next.activeDropTarget?.id === noteId
+  if (!wasTarget && !isTarget) return true
+  return wasTarget === isTarget && prev.activeDropTarget?.zone === next.activeDropTarget?.zone
+}
+
+const NoteItem = memo(NoteItemImpl, areNoteItemPropsEqual)
+
 export function NotesSidebar({ selectedNoteId, onSelectNote, className }: NotesSidebarProps) {
   const queryClient = useQueryClient()
   const { data: notes = [], isLoading } = useNotesQuery()
@@ -486,7 +523,7 @@ export function NotesSidebar({ selectedNoteId, onSelectNote, className }: NotesS
     }
   }, [selectedNoteId, notes])
 
-  const toggleExpanded = (noteId: string, e?: React.MouseEvent) => {
+  const toggleExpanded = useCallback((noteId: string, e?: React.MouseEvent) => {
     e?.stopPropagation()
     setExpandedIds((prev) => {
       const next = new Set(prev)
@@ -497,7 +534,7 @@ export function NotesSidebar({ selectedNoteId, onSelectNote, className }: NotesS
       }
       return next
     })
-  }
+  }, [])
 
   // DnD Logic — OneNote-style drop zones, no axis lock, no horizontal swipe.
   const [activeNote, setActiveNote] = useState<NoteTreeItem | null>(null)
@@ -752,35 +789,41 @@ export function NotesSidebar({ selectedNoteId, onSelectNote, className }: NotesS
     }
   }, [activeNote])
 
-  const handleCreateNote = (parentId?: string | null) => {
-    createMutation.mutate(
-      {
-        title: 'Untitled',
-        content: '[]',
-        parentId: parentId || null,
-      },
-      {
-        onSuccess: (newNote) => {
-          onSelectNote(newNote)
-          if (parentId) {
-            setExpandedIds((prev) => new Set([...prev, parentId]))
-          }
+  const handleCreateNote = useCallback(
+    (parentId?: string | null) => {
+      createMutation.mutate(
+        {
+          title: 'Untitled',
+          content: '[]',
+          parentId: parentId || null,
         },
-      },
-    )
-  }
+        {
+          onSuccess: (newNote) => {
+            onSelectNote(newNote)
+            if (parentId) {
+              setExpandedIds((prev) => new Set([...prev, parentId]))
+            }
+          },
+        },
+      )
+    },
+    [createMutation, onSelectNote],
+  )
 
-  const handleToggleFavorite = (note: Note) => {
-    updateMutation.mutate({
-      id: note.id,
-      data: { isFavorite: !note.isFavorite },
-    })
-  }
+  const handleToggleFavorite = useCallback(
+    (note: Note) => {
+      updateMutation.mutate({
+        id: note.id,
+        data: { isFavorite: !note.isFavorite },
+      })
+    },
+    [updateMutation],
+  )
 
-  const handleDeleteNote = (noteId: string) => {
+  const handleDeleteNote = useCallback((noteId: string) => {
     setDeleteConfirmNoteId(noteId)
     setContextMenuNoteId(null)
-  }
+  }, [])
 
   const confirmDeleteNote = async () => {
     if (!deleteConfirmNoteId) return
@@ -858,19 +901,22 @@ export function NotesSidebar({ selectedNoteId, onSelectNote, className }: NotesS
   // mark several notes and delete them together. A plain click also
   // clears any existing multi-select so the user doesn't have a stale
   // selection hanging around once they move on.
-  const handleNoteClick = (note: Note, modifier: boolean) => {
-    if (modifier) {
-      setMultiSelectIds((prev) => {
-        const next = new Set(prev)
-        if (next.has(note.id)) next.delete(note.id)
-        else next.add(note.id)
-        return next
-      })
-      return
-    }
-    if (multiSelectIds.size > 0) setMultiSelectIds(new Set())
-    onSelectNote(note)
-  }
+  const handleNoteClick = useCallback(
+    (note: Note, modifier: boolean) => {
+      if (modifier) {
+        setMultiSelectIds((prev) => {
+          const next = new Set(prev)
+          if (next.has(note.id)) next.delete(note.id)
+          else next.add(note.id)
+          return next
+        })
+        return
+      }
+      if (multiSelectIds.size > 0) setMultiSelectIds(new Set())
+      onSelectNote(note)
+    },
+    [multiSelectIds, onSelectNote],
+  )
 
   const clearMultiSelect = () => setMultiSelectIds(new Set())
 

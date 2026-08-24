@@ -28,7 +28,7 @@ import { SharedReportsView } from './shared-reports-view'
 import { SharingScheduleVisibility } from './sharing-schedule-visibility'
 
 export function SharingPage() {
-  const [activeTab, setActiveTab] = useState<TabType>('my')
+  const [activeTab, setActiveTab] = useState<TabType>('shared-with-me')
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [revokeDialogOpen, setRevokeDialogOpen] = useState(false)
   const [shareToRevoke, setShareToRevoke] = useState<string | null>(null)

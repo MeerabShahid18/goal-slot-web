@@ -3,8 +3,14 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import { useUpdateScheduleBlock } from '@/features/schedule/hooks/use-schedule-mutations'
-import { DAY_END_MIN, DAY_START_MIN, MIN_DURATION, PX_PER_MIN } from '@/features/schedule/utils/constants'
-import { DraftSelection, ScheduleBlock, ScheduleUpdatePayload, WeekSchedule } from '@/features/schedule/utils/types'
+import { DAY_END_MIN, DAY_START_MIN, getPxPerMin, MIN_DURATION } from '@/features/schedule/utils/constants'
+import {
+  DraftSelection,
+  ScheduleBlock,
+  ScheduleDensity,
+  ScheduleUpdatePayload,
+  WeekSchedule,
+} from '@/features/schedule/utils/types'
 import { hasOverlap, snapMinutes } from '@/features/schedule/utils/utils'
 import { DragEndEvent, DragMoveEvent, DragStartEvent } from '@dnd-kit/core'
 import { toast } from 'react-hot-toast'
@@ -14,10 +20,15 @@ import { minutesToTime, timeToMinutes } from '@/lib/utils'
 type UseScheduleDragArgs = {
   weekSchedule: WeekSchedule
   draftKey: number
+  density: ScheduleDensity
 }
 
-export function useScheduleDrag({ weekSchedule, draftKey }: UseScheduleDragArgs) {
+export function useScheduleDrag({ weekSchedule, draftKey, density }: UseScheduleDragArgs) {
   const { mutate: updateBlock } = useUpdateScheduleBlock()
+  // Same density -> scale mapping ScheduleGrid uses for rendering, so a
+  // pointer-pixel delta converts to the same minute delta the grid would
+  // use to place the block, in both directions (move and resize).
+  const pxPerMin = getPxPerMin(density)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [preview, setPreview] = useState<DraftSelection | null>(null)
   const [pendingDraft, setPendingDraft] = useState<DraftSelection | null>(null)
@@ -76,7 +87,7 @@ export function useScheduleDrag({ weekSchedule, draftKey }: UseScheduleDragArgs)
     const overDay: number | undefined = event.over?.data?.current?.day
     const day = overDay ?? block.dayOfWeek
     const duration = timeToMinutes(block.endTime) - timeToMinutes(block.startTime)
-    const deltaMinutes = (event.delta.y || 0) / PX_PER_MIN
+    const deltaMinutes = (event.delta.y || 0) / pxPerMin
 
     if (type === 'block') {
       const newStart = snapMinutes(timeToMinutes(block.startTime) + deltaMinutes)
@@ -112,7 +123,7 @@ export function useScheduleDrag({ weekSchedule, draftKey }: UseScheduleDragArgs)
 
     const overDay: number | undefined = event.over?.data?.current?.day
     const day = overDay ?? block.dayOfWeek
-    const deltaMinutes = (event.delta.y || 0) / PX_PER_MIN
+    const deltaMinutes = (event.delta.y || 0) / pxPerMin
     const originalStart = timeToMinutes(block.startTime)
     const originalEnd = timeToMinutes(block.endTime)
     let nextStart = originalStart

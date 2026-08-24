@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
+import { appendCurrentHash } from '@/features/whiteboards/excalidraw-library-url'
 import { useCreateWhiteboardMutation, useWhiteboardsQuery } from '@/features/whiteboards/hooks/use-whiteboards'
-import type { Whiteboard } from '@/features/whiteboards/types'
+import type { WhiteboardSummary } from '@/features/whiteboards/types'
 
 const LAST_WHITEBOARD_KEY = 'dw-last-whiteboard-id'
 
@@ -60,7 +61,7 @@ export function useWhiteboardsSelection({ initialWhiteboardId }: UseWhiteboardsS
       if (!paramId) {
         const params = new URLSearchParams(searchParams.toString())
         params.set('whiteboardId', idToSelect)
-        router.replace(`${pathname}?${params.toString()}`)
+        router.replace(appendCurrentHash(`${pathname}?${params.toString()}`))
       }
     }
 
@@ -76,20 +77,20 @@ export function useWhiteboardsSelection({ initialWhiteboardId }: UseWhiteboardsS
     pathname,
   ])
 
-  const selectedWhiteboard = useMemo<Whiteboard | null>(
+  const selectedWhiteboard = useMemo<WhiteboardSummary | null>(
     () => whiteboards.find((w) => w.id === selectedWhiteboardId) ?? null,
     [whiteboards, selectedWhiteboardId],
   )
 
   const selectWhiteboard = useCallback(
-    (whiteboard: Whiteboard) => {
+    (whiteboard: WhiteboardSummary) => {
       setSelectedWhiteboardId(whiteboard.id)
       if (typeof window !== 'undefined') {
         window.localStorage.setItem(LAST_WHITEBOARD_KEY, whiteboard.id)
       }
       const params = new URLSearchParams(searchParams.toString())
       params.set('whiteboardId', whiteboard.id)
-      router.push(`${pathname}?${params.toString()}`)
+      router.push(appendCurrentHash(`${pathname}?${params.toString()}`))
     },
     [pathname, router, searchParams],
   )
@@ -110,7 +111,7 @@ export function useWhiteboardsSelection({ initialWhiteboardId }: UseWhiteboardsS
     }
     setSelectedWhiteboardId(null)
     if (typeof window !== 'undefined') window.localStorage.removeItem(LAST_WHITEBOARD_KEY)
-    router.replace(pathname)
+    router.replace(appendCurrentHash(pathname))
   }, [whiteboards, pathname, router, selectWhiteboard, selectedWhiteboardId])
 
   return {
